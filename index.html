@@ -181,6 +181,17 @@ button.small{padding:.3rem .7rem;font-size:.9rem}
 .tdemo .tt{height:2.4rem;font-size:clamp(.62rem,2vw,.9rem)}
 @media (max-width:640px){.tt{height:3rem;padding:0 2px}#tboard{gap:.3rem;padding:.35rem}.tln{stroke-width:5}#tstreak .sub:last-child{display:none}.tside .tsc{font-size:1.9rem}.tclock{min-width:5.5rem}.tfinal{font-size:2.4rem}}
 #kbtn{position:fixed;left:50%;bottom:calc(1rem + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:50;background:var(--main);color:var(--bg);border:0;font-family:var(--ui);font-weight:700;letter-spacing:.06em;padding:.7rem 1.3rem;border-radius:999px;box-shadow:0 6px 24px -6px var(--main)}
+.ctl{display:flex;gap:.4rem;justify-content:flex-end;flex-wrap:wrap;margin-bottom:.5rem;transition:opacity .2s}
+.ctl button{font-size:.8rem;padding:.3rem .7rem}
+body.typing .ctl{opacity:.45} body.typing .ctl:hover{opacity:1}
+.ctl button.warn{border-color:var(--err);color:var(--err)}
+.opts{display:grid;gap:1rem}
+.opts .orow{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+.opts .orow>span:first-child{min-width:10rem;color:var(--sub)}
+.opts .seg{display:inline-flex;gap:.3rem;flex-wrap:wrap}
+.opts .seg button{font-size:.85rem;padding:.3rem .75rem}
+.opts .seg button.on{background:var(--main);color:var(--bg);border-color:transparent}
+.opts button.danger{border-color:color-mix(in srgb,var(--err) 60%,transparent);color:var(--err)}
 @media (max-width:640px){.res{grid-template-columns:1fr}h1{font-size:2.2rem}:root{--fs:1.35rem}}
 </style>
 </head>
@@ -192,6 +203,7 @@ button.small{padding:.3rem .7rem;font-size:.9rem}
     <input id="name" placeholder="your name" maxlength="18" style="width:9rem">
     <button id="b-sound" title="sound on or off">sound on</button>
     <button id="b-theme" title="theme">theme</button>
+    <button id="b-opts" title="game options and resets">options</button>
     <a id="a-coach" class="sub" href="typing-coach.html" hidden style="font-size:.85rem">coach</a>
   </div>
 </header>
@@ -230,6 +242,7 @@ button.small{padding:.3rem .7rem;font-size:.9rem}
 </section>
 
 <section id="race" hidden>
+  <div class="ctl" id="rctl"><button id="c-restart" title="same quote from the start">restart <span class="kbd">Esc</span></button><button id="c-new" title="a different quote">new quote</button><button id="c-quit">quit</button></div>
   <div id="tmeta"><span id="t-left"></span><span id="t-right"></span></div>
   <div class="rtrack" id="track"></div>
   <div id="tbox" tabindex="0"><div id="words"></div><div id="count" class="rcount" hidden></div></div>
@@ -521,7 +534,8 @@ $('#b-theme').onclick=()=>{const o=['black','serika','paper'];db.theme=o[(o.inde
 $('#name').onkeydown=e=>{if(e.key==='Enter'||e.key==='Escape')e.target.blur();};$('#name').oninput=e=>{db.name=e.target.value.slice(0,18);save();if(LINK&&LINK.open)LINK.send({t:'hi',name:myName()});};
 /* ---- quotes and ghosts ---- */
 let FRIEND=null; // ghost from a link {h,wpm,name,g}
-function pickQuote(){let q;for(let i=0;i<20;i++){q=QUOTES[Math.floor(Math.random()*QUOTES.length)];if(!T||q[0]!==T.text)break;}return q;}
+const QLEN={short:[0,159],medium:[160,239],long:[240,9999],any:[0,9999]};
+function pickQuote(){const [lo,hi]=QLEN[db.qlen]||QLEN.any;const pool=QUOTES.filter(q=>q[0].length>=lo&&q[0].length<=hi);const P=pool.length?pool:QUOTES;let q;for(let i=0;i<20;i++){q=P[Math.floor(Math.random()*P.length)];if(!T||q[0]!==T.text)break;}return q;}
 function ghostsFor(h){const g=db.ghosts[h]||{};const out=[];if(g.best)out.push({id:'ghost',kind:'ghost',name:'your ghost '+r0(g.best.wpm),rec:RACE.unpack(g.best.g),wpm:g.best.wpm});if(FRIEND&&FRIEND.h===h)out.push({id:'friend',kind:'friend',name:(FRIEND.name||'friend')+' '+r0(FRIEND.wpm),rec:RACE.unpack(FRIEND.g),wpm:FRIEND.wpm});else if(g.friend)out.push({id:'friend',kind:'friend',name:(g.friend.name||'friend')+' '+r0(g.friend.wpm),rec:RACE.unpack(g.friend.g),wpm:g.friend.wpm});return out;}
 function storeGhost(h,kind,o){const g=db.ghosts[h]||(db.ghosts[h]={});if(kind==='best'){if(!g.best||o.wpm>g.best.wpm){g.best=o;return true;}return false;}g[kind]=o;const ks=Object.keys(db.ghosts);if(ks.length>160)delete db.ghosts[ks[0]];return false;}
 /* ---- race setup ---- */
@@ -655,7 +669,7 @@ function startSolo(){if(LINK)leaveLive();const same=T&&!T.live&&db.sameTx>0;if(!
 $('#m-solo').onclick=()=>{T=null;db.sameTx=0;startSolo();};
 $('#m-daily').onclick=()=>{if(LINK)leaveLive();T=null;db.sameTx=0;setup(QUOTES[RACE.dailyIndex(QUOTES.length)],{daily:true});};
 /* ---- live: host and join ---- */
-function lobby(html){const L=$('#lobby');L.hidden=false;L.innerHTML=html;}
+function lobby(html){const L=$('#lobby');L.hidden=false;L.innerHTML=html;const r=L.getBoundingClientRect();if(r.top>innerHeight*0.6)L.scrollIntoView({block:'start',behavior:'smooth'});}
 function leaveLive(){if(LINK){LINK.send({t:'bye'});LINK.close();}LINK=null;SYNC=null;PEER={name:'friend',ready:false,fin:null};IS_HOST=false;$('#lobby').hidden=true;}
 function wireLink(){SYNC=RACE.Sync();
   return {
@@ -804,7 +818,8 @@ function botTick(B,side,t){const isOp=side===S.op;if(t<S.hold[side]||t<B.next)re
   if(B.buf===tl.w){let sh=0;if(B.shield){sh=1;B.shield=false;}else if(++B.streak>=STREAK){B.shield=true;B.streak=0;}S.queue.push({who:side,i:B.tgt,v:B.v,at:t,sh});B.tgt=null;B.buf='';if(isOp)S.opBuf='';B.next=t+B.dt;}else B.next=t+B.dt*(0.75+Math.random()*0.5);
   paint();}
 /* ---- screen ---- */
-function build(){const R=$('#turf');R.innerHTML='<div id="tres" class="card" hidden></div><div id="tstrip"><div class="tside me" id="tside-me"><span class="tnm" id="tn-me"></span><b class="tsc"><span id="ts-me">0</span></b></div><div class="tclock"><b id="tclk"></b><span class="sub" id="tmatch"></span></div><div class="tside op" id="tside-op"><b class="tsc"><span id="ts-op">0</span></b><span class="tnm" id="tn-op"></span></div></div><div id="ttug"><i class="me"></i><i class="op"></i><b></b></div><div id="tnote"></div><div id="tboard"></div><div id="tbufl"></div><div id="tstreak"></div><div id="tfoot" class="sub"></div>';
+function build(){const R=$('#turf');R.innerHTML='<div class="ctl" id="tctl"><button id="tc-restart" title="new board">restart <span class="kbd">Esc</span></button><button id="tc-quit">quit</button></div><div id="tres" class="card" hidden></div><div id="tstrip"><div class="tside me" id="tside-me"><span class="tnm" id="tn-me"></span><b class="tsc"><span id="ts-me">0</span></b></div><div class="tclock"><b id="tclk"></b><span class="sub" id="tmatch"></span></div><div class="tside op" id="tside-op"><b class="tsc"><span id="ts-op">0</span></b><span class="tnm" id="tn-op"></span></div></div><div id="ttug"><i class="me"></i><i class="op"></i><b></b></div><div id="tnote"></div><div id="tboard"></div><div id="tbufl"></div><div id="tstreak"></div><div id="tfoot" class="sub"></div>';
+  $('#tc-restart').onclick=()=>{if(S&&!S.live)solo(S.bot?{}:{noBot:true});};$('#tc-quit').onclick=e=>quitGame(e.currentTarget);
   const B=$('#tboard');EL.tiles=[];for(let i=0;i<N*N;i++){const d=document.createElement('div');d.className='tt';B.appendChild(d);EL.tiles.push(d);}
   const sv=document.createElementNS('http://www.w3.org/2000/svg','svg');sv.id='tlines';B.appendChild(sv);EL.svg=sv;EL.lineKey='';}
 function threats(tn){const out={};if(S.state!=='go')return out;LINES.forEach((L,li)=>{for(const who of [S.me,S.op]){if(S.held[li]===who||S.scored[who].includes(li))continue;const own=L.filter(k=>view(k).o===who);if(own.length!==4)continue;const k=L.find(x=>view(x).o!==who);const v=view(k);if(!v.w||sealed(v,tn)||v.pend)continue;out[k]=out[k]||{};out[k][who===S.me?'me':'op']=li;
@@ -852,6 +867,7 @@ function start(o){stop();T=null;['#home','#race','#results','#lobby'].forEach(s=
     start:t0,end:t0+o.dur,dur:o.dur,hold:{h:t0+(o.holdH||0),j:t0+(o.holdJ||0)},drops:cfg.drops.map(f=>t0+o.dur*f),buf:'',bad:false,wordErr:false,shield:false,opBuf:'',sent:'',pend:[],queue:[],state:'count',lastCount:9,said:new Set(),
     st:{keys:0,ok:0,bad:0,bs:0,chars:0,claims:0,steals:0,lost:0,snipes:0,longest:'',lines:0,streak:0,bestStreak:0},botSt:{claims:0,steals:0},opSt:null,ready:false,opts:o};
   if(S.live&&(TM.link!==LINK||TM.me>=FIRST||TM.op>=FIRST))TM={me:0,op:0,link:LINK};
+  $('#tc-restart').hidden=S.live;$('#tc-quit').textContent=S.live?'leave match':'quit';
   R.style.setProperty('--oc',opColor());const ini=(opName()[0]||'?').toUpperCase();EL.tiles.forEach(el=>el.dataset.op=ini);
   $('#tn-me').textContent=myName();$('#tn-op').textContent=S.bot?'bot':opName();$('#tmatch').textContent=matchText();$('#tclk').textContent='';
   $('#tfoot').innerHTML='finish a word and the square is yours, no Enter needed &middot; space clears a wrong word &middot; a full line banks +3 and seals it for '+Math.round(cfg.seal/1000)+' s'+(S.live?' &middot; keys 1 to 4 react between games':' &middot; Esc restarts');
@@ -927,6 +943,33 @@ $('#g-race').onclick=()=>setTab('race');$('#g-turf').onclick=()=>setTab('turf');
 $('#b-bup').onclick=()=>{TURF.tdb().bot++;save();renderTurfHome();};$('#b-bdn').onclick=()=>{const d=TURF.tdb();d.bot=Math.max(15,d.bot-1);save();renderTurfHome();};
 $('#t-solo').onclick=()=>TURF.solo();$('#t-host').onclick=()=>{RACE.sfx.unlock();host();};$('#t-join').onclick=()=>$('#m-join').onclick();
 $('#t-how').onclick=()=>{lobby('<h2>How Word Turf works</h2><ol class="trules"><li>Type any word on the board. The moment it is right, the square is yours. No Enter, no space.</li><li>A taken square shows a new, longer word. Type it to steal the square. Your rival can steal it back the same way.</li><li>Own all five squares of a row, column or diagonal and you bank 3 points (each line once per player); the line is struck through and sealed for 15 seconds, then its squares are open again. When someone holds 4 of a line, the fifth square pulses: LINE in your colour, BLOCK in theirs.</li><li>Gold squares count 3: the centre starts gold and two more turn gold during the game. Five words in a row with no typo give you a shield: your next square is sealed for 12 seconds.</li><li>Final rush: in the last 12 seconds every taken square switches to a short word, so anything can be stolen fast.</li><li>A wrong letter turns red; backspace it, or press space to clear the word.</li><li>You can see what your rival is typing: their letters are underlined on the board in their colour. Get there first.</li><li>75 seconds. Most points wins. Against a friend, first to 2 games takes the match.</li></ol><p><button id="b-cancel">close</button></p>');$('#b-cancel').onclick=()=>{$('#lobby').hidden=true;};};
+/* ---- on-screen controls and options ---- */
+function twoStep(btn,label,fn){if(btn.dataset.armed){fn();return;}btn.dataset.armed='1';const old=btn.innerHTML;btn.textContent=label;btn.classList.add('warn');setTimeout(()=>{if(btn.isConnected){delete btn.dataset.armed;btn.innerHTML=old;btn.classList.remove('warn');}},3000);}
+function quitGame(btn){const live=(T&&T.live)||(TURF.S&&TURF.S.live);const go=()=>{if(live)leaveLive();TURF.stop();goHome();};if(live)twoStep(btn,'leave the match? click again',go);else go();}
+$('#c-restart').onclick=()=>{if(T&&!T.live)setup(T.q);};
+$('#c-new').onclick=()=>{if(T&&!T.live){db.sameTx=0;T=null;setup(pickQuote());}};
+$('#c-quit').onclick=e=>quitGame(e.currentTarget);
+function syncCtl(){const live=!!(T&&T.live);$('#c-restart').hidden=live;$('#c-new').hidden=live;$('#c-quit').textContent=live?'leave match':'quit';}
+setInterval(()=>{if(!$('#race').hidden)syncCtl();},500);
+function seg(id,cur,opts){return '<span class="seg" id="'+id+'">'+opts.map(([v,l])=>'<button data-v="'+v+'" class="'+(String(cur)===String(v)?'on':'')+'">'+l+'</button>').join('')+'</span>';}
+function openOptions(){if((T&&T.live&&T.state!=='done')||TURF.playingLive()){toast('Finish or leave the live game first.');return;}if(T||TURF.S){TURF.stop();goHome();}
+  const d=TURF.tdb();const h='<h2>Options</h2><div class="opts">'+
+   '<div class="orow"><span>race quote length</span>'+seg('o-qlen',db.qlen||'any',[['short','short'],['medium','medium'],['long','long'],['any','any']])+'</div>'+
+   '<div class="orow"><span>Word Turf game length</span>'+seg('o-tdur',db.turfDur||75000,[[45000,'45 s'],[75000,'75 s'],[120000,'2 min']])+'</div>'+
+   '<div class="orow"><span>fair start (live)</span>'+seg('o-hcap',HCAP?1:0,[[1,'on'],[0,'off']])+'<span class="sub" style="font-size:.85rem">the faster typist waits a little at the start</span></div>'+
+   '<div class="orow"><span>sound</span>'+seg('o-snd',RACE.sfx.on?1:0,[[1,'on'],[0,'off']])+'</div>'+
+   '<div class="orow"><span>reset</span><button class="danger" id="o-rrace">reset race progress</button><button class="danger" id="o-rturf">reset Word Turf record</button></div>'+
+   '<p class="sub" style="margin:0;font-size:.85rem">Race reset: pacer back to 40 wpm, history, ghosts and live record cleared. Word Turf reset: bot back to your pacer speed, record cleared.</p>'+
+   '<div><button id="b-cancel">done</button></div></div>';
+  lobby(h);
+  const wire=(id,fn)=>$('#'+id).querySelectorAll('button').forEach(b=>b.onclick=()=>{$('#'+id).querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));fn(b.dataset.v);save();renderHome();});
+  wire('o-qlen',v=>{db.qlen=v;});wire('o-tdur',v=>{db.turfDur=+v;TURF.cfg.dur=+v;});wire('o-hcap',v=>{HCAP=v==='1';db.hcap=HCAP;});wire('o-snd',v=>{RACE.sfx.set(v==='1');});
+  $('#o-rrace').onclick=e=>twoStep(e.currentTarget,'click again to reset the race',()=>{Object.assign(db,{tests:[],ghosts:{},target:40,sameTx:0,streak:0,best:0,live:{w:0,l:0}});save();renderHome();toast('Race progress reset.');openOptions();});
+  $('#o-rturf').onclick=e=>twoStep(e.currentTarget,'click again to reset Word Turf',()=>{db.turf=null;save();TURF.tdb();save();renderHome();if(GAME==='turf')renderTurfHome();toast('Word Turf record reset.');openOptions();});
+  $('#b-cancel').onclick=()=>{$('#lobby').hidden=true;};}
+$('#b-opts').onclick=openOptions;
+document.addEventListener('mousedown',e=>{if(e.target.closest('.ctl button'))e.preventDefault();});
+if(db.turfDur)TURF.cfg.dur=+db.turfDur;if(db.hcap!=null)HCAP=!!db.hcap;
 /* ---- between games: the host can switch what the rematch plays ---- */
 let NEXTG=null;
 const gameTitle=g=>g==='turf'?'Word Turf':'Pace Race';
