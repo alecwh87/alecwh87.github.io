@@ -69,6 +69,14 @@ h2{font-family:var(--ui);font-size:1.1rem;font-weight:600;margin:0 0 .5rem}
 .word.end{border-right-color:var(--main)}
 @keyframes blink{50%{border-color:transparent}}
 .word i.pace{box-shadow:inset 0 -3px 0 color-mix(in srgb,var(--main) 60%,var(--bg))}
+.word i.peer{box-shadow:inset 0 3px 0 var(--p-peer,var(--p-friend));border-radius:2px 2px 0 0}
+.word i.pace.peer{box-shadow:inset 0 -3px 0 color-mix(in srgb,var(--main) 60%,var(--bg)),inset 0 3px 0 var(--p-peer,var(--p-friend))}
+.rlane.rstumble .rdot{animation:rstumble .3s}
+@keyframes rstumble{30%{transform:rotate(45deg) translate(-3px,0);filter:brightness(1.6)}60%{transform:rotate(45deg) translate(3px,0)}}
+.rscore{border-collapse:collapse;margin-top:.8rem;font-size:.95rem}
+.rscore th,.rscore td{text-align:left;padding:.25rem .9rem .25rem 0;border-bottom:1px solid var(--card2)}
+.rscore th{font-family:var(--ui);font-weight:600}
+button.small{padding:.3rem .7rem;font-size:.9rem}
 #live{display:flex;gap:1.2rem;color:var(--sub);font-size:.9rem;margin-top:.4rem;min-height:1.4rem;font-family:var(--ui)}
 #src{color:var(--sub);font-size:.85rem;margin-top:.3rem;min-height:1.3rem}
 .res{display:grid;grid-template-columns:auto 1fr;gap:1.5rem 2.5rem;align-items:start}
@@ -99,13 +107,15 @@ h2{font-family:var(--ui);font-size:1.1rem;font-weight:600;margin:0 0 .5rem}
   <div class="hero">
     <h1>Pace <span>Race</span></h1>
     <p>One real quote, one race. The pacer runs at the speed just past your own; beat it and the next race is one step faster, miss it and the same quote comes back for a rematch. Your best run on each quote becomes a ghost you race next time.</p>
-    <div class="pacerow"><span>pacer at</span><button id="b-tdn" title="slower">&minus;</button><b id="tgt">40</b><button id="b-tup" title="faster">+</button><span>wpm</span></div>
+    <div class="pacerow"><span>pacer at</span><button id="b-tdn" title="slower">&minus;</button><b id="tgt">40</b><button id="b-tup" title="faster">+</button><span>wpm</span><span id="tier" class="rtier" style="margin-left:.6rem"></span></div>
     <div class="modes">
       <button class="mode" id="m-solo"><span class="tag">solo</span><b>Race the pacer</b><span class="sub">and your own ghost on this quote. Enter to race, Enter again to rematch.</span></button>
       <button class="mode" id="m-host"><span class="tag">live 1v1</span><b>Host a race</b><span class="sub">get a four-letter code, send it with this page's link, race in real time.</span></button>
       <button class="mode" id="m-join"><span class="tag">live 1v1</span><b>Join a race</b><span class="sub">type the code a friend sent you.</span></button>
+      <button class="mode" id="m-daily"><span class="tag">today</span><b>Today’s quote</b><span class="sub" id="daily-sub">the same quote for everyone today; race it, then send your run.</span></button>
     </div>
     <div class="stats" id="stats"></div>
+    <div class="sub" id="quests"></div>
     <div id="ghostnote" class="sub" hidden></div>
   </div>
   <div class="card" id="lobby" hidden></div>
@@ -160,7 +170,49 @@ const sfx=(()=>{let ctx=null,on=true;try{on=localStorage.getItem('race.sound')!=
     lose(){tone(392,{type:'triangle',dur:0.25,gain:0.06});tone(311,{type:'triangle',dur:0.4,gain:0.06,at:0.22});},
     pb(){[880,1109,1319,1760,2217].forEach((f,i)=>tone(f,{type:'sine',dur:0.12,gain:0.04,at:i*0.05}));},
     finish(){tone(740,{type:'triangle',dur:0.18,gain:0.06});tone(988,{type:'triangle',dur:0.3,gain:0.06,at:0.12});},
+    light(){tone(520,{type:'square',dur:0.05,gain:0.03});},
+    heart(){tone(62,{type:'sine',dur:0.11,gain:0.12});tone(58,{type:'sine',dur:0.14,gain:0.1,at:0.16});},
+    tierup(){[523,659,784,988,1319].forEach((f,i)=>tone(f,{type:'triangle',dur:0.16,gain:0.06,at:i*0.07}));tone(1319,{type:'sine',dur:0.6,gain:0.04,at:0.4});},
+    matchwin(){[392,523,659,784,1047,784,1047,1319].forEach((f,i)=>tone(f,{type:'triangle',dur:0.2,gain:0.07,at:i*0.1}));tone(1568,{type:'sine',dur:0.8,gain:0.04,at:0.85});},
+    photo(){noise(0.05,0.08);tone(1760,{type:'sine',dur:0.25,gain:0.05,at:0.05});},
+    callout(){tone(880,{type:'triangle',dur:0.08,gain:0.03});},
   };})();
+/* ---- tiers from the pacer target (the real target, so the badge means something) ---- */
+const TIERS=[['Bronze',0,'#cd8a4b'],['Silver',45,'#bfc5cc'],['Gold',60,'#e2b714'],['Platinum',75,'#7fd1e8'],['Diamond',90,'#8fb5ff'],['Master',110,'#ff6f91']];
+function tier(t){t=+t||0;let i=0;for(let k=0;k<TIERS.length;k++)if(t>=TIERS[k][1])i=k;const [name,base,color]=TIERS[i];const next=TIERS[i+1]?TIERS[i+1][1]:null;const span=next?next-base:30;const sub=Math.min(3,1+Math.floor((t-base)/(span/3)));return {name,sub,label:name+' '+['I','II','III'][sub-1],color,next,idx:i*3+sub,base};}
+/* ---- start lights: left = ms until GO ---- */
+function lightsHtml(left){const n=left<=0?5:Math.max(0,Math.min(5,6-Math.ceil(left/600)));let h='<div class="rlights'+(left<=0?' go':'')+'">';for(let i=0;i<5;i++)h+='<i class="'+(i<n?'on':'')+'"></i>';return h+'</div>'+(left<=0?'<div class="rgo">GO</div>':'')+'';}
+function lightsCount(left){return left<=0?5:Math.max(0,Math.min(5,6-Math.ceil(left/600)));}
+/* ---- in-race events: returns a list of event names, keeps its flags on R ---- */
+function events(R,me,rivals,c,wordsLeft){const ev=[];const best=rivals.length?Math.max(...rivals):-1;const lead=me>=best;
+  if(R.ahead!==null&&R.ahead!==undefined&&lead!==R.ahead&&c>10)ev.push(lead?'lead':'lost');R.ahead=lead;
+  if(me>=0.6&&R.behind60===undefined)R.behind60=!lead;
+  if(!R.finalSaid&&me>=0.8&&wordsLeft>1){R.finalSaid=1;ev.push('final');}
+  if(!R.lastSaid&&wordsLeft===1&&c>10){R.lastSaid=1;ev.push('lastword');}
+  if(me>=0.7&&me<1&&best>=0&&best<1&&Math.abs(me-best)<0.03){const now=performance.now();if(!R.neckAt||now-R.neckAt>650){R.neckAt=now;ev.push('neck');}}
+  return ev;}
+const CALLOUT={lead:['in the lead','good'],lost:['overtaken','bad'],final:['final stretch',''],lastword:['last word',''],neck:['neck and neck','hot'],photo:['photo finish','hot'],matchpoint:['match point','hot'],perfect:['perfect race','good'],comeback:['comeback','good']};
+function callout(host,key,text){let el=host.querySelector('.rcallout');if(!el){el=document.createElement('div');el.className='rcallout';host.appendChild(el);}const [t,cls]=CALLOUT[key]||[key,''];el.textContent=text||t;el.className='rcallout '+cls;void el.offsetWidth;el.classList.add('show');clearTimeout(callout.h);callout.h=setTimeout(()=>el.classList.remove('show'),1150);}
+function screenFlash(color){let el=document.getElementById('rsflash');if(!el){el=document.createElement('div');el.id='rsflash';document.body.appendChild(el);}el.style.setProperty('--fc',color);el.classList.remove('on');void el.offsetWidth;el.classList.add('on');}
+/* ---- replay chart: progress over time for every racer ---- */
+function replay(canvas,lines,total){const dpr=devicePixelRatio||1;const W=canvas.offsetWidth||600,H=canvas.offsetHeight||160;canvas.width=W*dpr;canvas.height=H*dpr;const c=canvas.getContext('2d');c.scale(dpr,dpr);c.clearRect(0,0,W,H);
+  const cs=getComputedStyle(document.documentElement);const col=v=>cs.getPropertyValue(v).trim();const fg=col('--fg')||'#ccc',sub=col('--sub')||'#888';
+  const tmax=Math.max(1000,...lines.filter(l=>!l.rate).map(l=>endOf(l.rec)))*1.12;const px=48,py=10,pb=22;const X=t=>px+(W-px-10)*t/tmax,Y=p=>py+(H-py-pb)*(1-p);
+  c.strokeStyle=sub;c.globalAlpha=.35;c.lineWidth=1;c.beginPath();c.moveTo(px,Y(0));c.lineTo(W-10,Y(0));c.moveTo(px,Y(1));c.lineTo(W-10,Y(1));c.stroke();c.globalAlpha=1;
+  c.fillStyle=sub;c.font='11px system-ui,sans-serif';c.textAlign='right';c.fillText('finish',px-6,Y(1)+4);c.fillText('start',px-6,Y(0)+4);c.textAlign='center';for(let s=0;s<=tmax/1000;s+=Math.max(1,Math.ceil(tmax/1000/8)))c.fillText(s+'s',X(s*1000),H-6);
+  for(const l of lines){const color=l.color.startsWith('var(')?(col(l.color.slice(4,-1).split(',')[0])||'#888'):l.color;c.strokeStyle=color;c.lineWidth=l.width||2;c.setLineDash(l.dash||[]);c.beginPath();c.moveTo(X(0),Y(0));if(l.rate){const tEnd=total/5/l.rate*60000;c.lineTo(X(Math.min(tEnd,tmax)),Y(Math.min(1,tmax/tEnd)));}else for(const [t,ch] of l.rec)c.lineTo(X(t),Y(Math.min(1,ch/total)));c.stroke();c.setLineDash([]);
+    const last=l.rate?[Math.min(total/5/l.rate*60000,tmax),Math.min(1,tmax/(total/5/l.rate*60000))]:[endOf(l.rec),Math.min(1,(l.rec.length?l.rec[l.rec.length-1][1]:0)/total)];c.fillStyle=color;c.beginPath();c.arc(X(last[0]),Y(last[1]),3,0,7);c.fill();}
+  c.textAlign='left';let lx=px+4;for(const l of lines){const color=l.color.startsWith('var(')?(col(l.color.slice(4,-1).split(',')[0])||'#888'):l.color;c.fillStyle=color;c.fillRect(lx,py+2,10,3);c.fillStyle=fg;c.fillText(l.name,lx+14,py+7);lx+=14+c.measureText(l.name).width+14;}}
+/* where the time went against one rival: the four-word window where the gap grew most, and where it shrank most */
+function timeAt(rec,chars){for(const [t,c] of rec)if(c>=chars)return t;return rec.length?rec[rec.length-1][0]:0;}
+function gapAnalysis(meRec,rival,cum,words,total){const n=words.length;if(n<8)return null;const rt=i=>rival.rate?cum[i]/5/rival.rate*60000:timeAt(rival.rec,Math.min(cum[i],total));const g=[];for(let i=0;i<n;i++)g.push(timeAt(meRec,Math.min(cum[i],total))-rt(i));
+  const w=Math.min(4,n-1);let lost={d:-1e9,i:0},gain={d:1e9,i:0};for(let i=0;i+w<n;i++){const d=g[i+w]-g[i];if(d>lost.d)lost={d,i};if(d<gain.d)gain={d,i};}
+  const ph=i=>'“'+words.slice(i,i+w+1).join(' ')+'”';const out={};if(lost.d>250)out.lost={ms:lost.d,phrase:ph(lost.i)};if(gain.d<-250)out.gain={ms:-gain.d,phrase:ph(gain.i)};return out;}
+/* daily quote and daily goals */
+function dayKey(d){d=d||new Date();return d.getFullYear()*10000+(d.getMonth()+1)*100+d.getDate();}
+function dailyIndex(n,d){let h=dayKey(d)*2654435761%4294967296;h^=h>>>13;h=(h*1597334677)>>>0;return h%n;}
+function quests(tests,d){const k=dayKey(d);const today=tests.filter(t=>t.b!==undefined?(t.b==='race'&&dayKey(new Date(t.t))===k):dayKey(new Date(t.t))===k);const pacer=today.filter(t=>t.pass).length,ghost=today.filter(t=>t.vs&&(t.vs.ghost||t.vs.friend)).length,live=today.filter(t=>t.live).length;const q=[['beat the pacer',pacer,3],['beat a ghost',ghost,1],['race a friend',live,1]];return {q,done:q.every(x=>x[1]>=x[2]),line:q.map(x=>x[0]+' '+Math.min(x[1],x[2])+'/'+x[2]).join(' · ')};}
+function matchLine(m,meName,peerName){return meName+' '+m.me+' – '+m.peer+' '+peerName+(m.me===2&&m.peer===2?' · deciding race':m.me===2||m.peer===2?' · match point':'')+' · first to 3';}
 /* ---- track ---- */
 const COLORS={me:'var(--p-me,var(--main))',pacer:'var(--p-pacer,var(--sub))',ghost:'var(--p-ghost,#7aa2f7)',friend:'var(--p-friend,#f7768e)',peer:'var(--p-peer,var(--p-friend,#f7768e))'};
 function Track(el){const P=new Map();let order=[];
@@ -236,12 +288,39 @@ const CSS=`
 .vs{display:flex;flex-direction:column;gap:.45rem;min-width:0}
 .vs div{display:flex;justify-content:space-between;gap:1rem;border-bottom:1px solid var(--card2);padding-bottom:.3rem}
 .vs b{font-weight:600} .vs .d{font-variant-numeric:tabular-nums;white-space:nowrap}
+.rlights{display:flex;gap:12px;justify-content:center}
+.rlights i{width:24px;height:24px;border-radius:50%;background:color-mix(in srgb,var(--fg) 12%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--fg) 15%,transparent);transition:background .08s}
+.rlights i.on{background:#e23b3b;box-shadow:0 0 16px #e23b3b}
+.rlights.go i{background:#3ddc84;box-shadow:0 0 18px #3ddc84}
+.rgo{font-size:3.4rem;font-weight:700;letter-spacing:.1em;margin-top:.2rem;animation:rcount .8s ease-out both}
+.rcount{flex-direction:column;background:color-mix(in srgb,var(--bg) 55%,transparent)}
+.rcallout{position:absolute;left:50%;top:-2.2rem;transform:translateX(-50%);font-size:1.25rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--main);opacity:0;pointer-events:none;white-space:nowrap;z-index:6;text-shadow:0 0 18px color-mix(in srgb,var(--main) 55%,transparent)}
+.rcallout.good{color:var(--ok)} .rcallout.bad{color:var(--err)} .rcallout.hot{color:var(--fg)}
+.rcallout.show{animation:rcall 1.15s cubic-bezier(.2,1,.3,1) both}
+@keyframes rcall{0%{opacity:0;transform:translate(-50%,8px) scale(.7)}18%{opacity:1;transform:translate(-50%,0) scale(1.08)}75%{opacity:1;transform:translate(-50%,0) scale(1)}100%{opacity:0;transform:translate(-50%,-10px) scale(1)}}
+.rtrack{overflow:visible}
+.rtrack.racing::before{content:'';position:absolute;inset:0 14px 0 0;background:repeating-linear-gradient(90deg,transparent 0 46px,color-mix(in srgb,var(--fg) 7%,transparent) 46px 48px);animation:rspeed var(--rsp,1.4s) linear infinite;pointer-events:none;opacity:.7;mask-image:linear-gradient(90deg,transparent,#000 15%,#000 85%,transparent)}
+@keyframes rspeed{to{background-position:-96px 0}}
+.rcar.nitro .rtrail{width:96px;background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--c) 70%,transparent) 60%,#fff);animation:rflick .09s infinite alternate}
+@keyframes rflick{to{opacity:.6;width:80px}}
+.rcar.nitro .rdot{box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 40%,transparent),0 0 26px var(--c)}
+body.rlead::after{content:'';position:fixed;inset:0;pointer-events:none;box-shadow:inset 0 0 110px color-mix(in srgb,var(--main) 28%,transparent);z-index:40;animation:rglow .5s ease-out}
+@keyframes rglow{from{opacity:0}}
+#rsflash{position:fixed;inset:0;pointer-events:none;z-index:41;opacity:0;background:var(--fc,#e23b3b)}
+#rsflash.on{animation:rsflash .4s ease-out}
+@keyframes rsflash{0%{opacity:.22}100%{opacity:0}}
+.rtier{display:inline-flex;align-items:center;gap:.4rem;font-weight:700;color:var(--tc);letter-spacing:.04em}
+.rtier::before{content:'';width:.7rem;height:.7rem;border-radius:2px;transform:rotate(45deg);background:var(--tc);box-shadow:0 0 10px color-mix(in srgb,var(--tc) 60%,transparent)}
+.rbadge{display:inline-block;font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;font-weight:700;border:1px solid var(--main);color:var(--main);border-radius:999px;padding:.15rem .6rem;margin:.2rem .3rem .2rem 0;animation:rpop .4s cubic-bezier(.2,1.4,.4,1) both}
+.rbadge.pb{background:var(--main);color:var(--bg)}
+.rmatch{font-weight:700;letter-spacing:.04em}
+.rreplay{width:100%;height:170px;display:block;margin-top:.6rem}
 .rcombo{position:absolute;right:0;top:-1.6rem;font-size:.85rem;color:var(--sub);transition:color .2s,transform .15s}
 .rcombo.hot{color:var(--main);font-weight:700}
 .rcombo.bump{transform:scale(1.25)}
 `;
 function injectCss(){if(document.getElementById('race-css'))return;const s=document.createElement('style');s.id='race-css';s.textContent=CSS;document.head.appendChild(s);}
-return {code,cleanCode,esc,textHash,pack,unpack,at,endOf,link,parseHash,parseJoin,sfx,Track,ordinal,floatText,confetti,flash,Link,Sync,loadPeer,errName,injectCss,COLORS};
+return {code,cleanCode,esc,textHash,pack,unpack,at,endOf,link,parseHash,parseJoin,sfx,Track,ordinal,floatText,confetti,flash,Link,Sync,loadPeer,errName,injectCss,COLORS,TIERS,tier,lightsHtml,lightsCount,events,callout,CALLOUT,screenFlash,replay,gapAnalysis,timeAt,dayKey,dailyIndex,quests,matchLine};
 })();
 
 RACE.injectCss();
@@ -256,13 +335,16 @@ const quoteByHash=h=>QUOTES.find(q=>RACE.textHash(q[0])===h)||null;
 const myName=()=>(db.name||'').trim()||'you';
 /* ---- state ---- */
 let T=null;   // current race
-let LINK=null,SYNC=null,PEER={name:'friend',ready:false,fin:null};let IS_HOST=false;
+let LINK=null,SYNC=null,PEER={name:'friend',ready:false,fin:null};let IS_HOST=false;let MATCH={me:0,peer:0};let MODE='duel',HCAP=true;const REACTS=['gg','again!','so close','too fast'];
 let track=null;
 /* ---- home ---- */
 function applyTheme(){document.documentElement.setAttribute('data-theme',db.theme||'black');}
 function renderHome(){$('#tgt').textContent=db.target;const n=db.tests.length,w=db.tests.filter(t=>t.pass).length,g=db.tests.filter(t=>t.vs&&t.vs.ghost!=null),gw=g.filter(t=>t.vs.ghost).length;
   $('#stats').innerHTML=n?'<div><div class="lbl">races</div><div class="v">'+n+'</div></div><div><div class="lbl">pacer beaten</div><div class="v">'+r0(100*w/n)+'%</div></div>'+(g.length?'<div><div class="lbl">ghost beaten</div><div class="v">'+r0(100*gw/g.length)+'%</div></div>':'')+'<div><div class="lbl">best</div><div class="v">'+r0(db.best)+' wpm</div></div>'+(db.live.w+db.live.l?'<div><div class="lbl">live record</div><div class="v">'+db.live.w+' – '+db.live.l+'</div></div>':'')+(db.streak>1?'<div><div class="lbl">streak</div><div class="v streak">'+db.streak+'</div></div>':''):'<span class="sub">First race sets your pace. The pacer starts at '+db.target+' wpm; set it near your usual speed.</span>';
-  $('#b-sound').textContent=RACE.sfx.on?'sound on':'sound off';$('#name').value=db.name||'';}
+  $('#b-sound').textContent=RACE.sfx.on?'sound on':'sound off';$('#name').value=db.name||'';
+  const tr=RACE.tier(db.target);$('#tier').textContent=tr.label;$('#tier').style.setProperty('--tc',tr.color);$('#tier').title=tr.next?'next: '+RACE.TIERS.find(x=>x[1]===tr.next)[0]+' at '+tr.next+' wpm':'top tier';
+  const qs=RACE.quests(db.tests);$('#quests').textContent=(qs.done?'Today’s goals done: ':'Today: ')+qs.line;
+  const dq=QUOTES[RACE.dailyIndex(QUOTES.length)];const dh=RACE.textHash(dq[0]);const dk=RACE.dayKey();const mine=db.tests.filter(t=>t.h===dh&&RACE.dayKey(new Date(t.t))===dk);$('#daily-sub').textContent=mine.length?'your best today '+r0(Math.max(...mine.map(t=>t.wpm)))+' wpm; race it again or send your run.':'the same quote for everyone today; race it, then send your run.';}
 $('#b-tup').onclick=()=>{db.target++;db.sameTx=0;save();renderHome();};$('#b-tdn').onclick=()=>{db.target=Math.max(10,db.target-1);db.sameTx=0;save();renderHome();};
 $('#b-sound').onclick=()=>{RACE.sfx.set(!RACE.sfx.on);renderHome();if(RACE.sfx.on)RACE.sfx.count();};
 $('#b-theme').onclick=()=>{const o=['black','serika','paper'];db.theme=o[(o.indexOf(db.theme)+1)%o.length];save();applyTheme();};
@@ -274,17 +356,17 @@ function ghostsFor(h){const g=db.ghosts[h]||{};const out=[];if(g.best)out.push({
 function storeGhost(h,kind,o){const g=db.ghosts[h]||(db.ghosts[h]={});if(kind==='best'){if(!g.best||o.wpm>g.best.wpm){g.best=o;return true;}return false;}g[kind]=o;const ks=Object.keys(db.ghosts);if(ks.length>160)delete db.ghosts[ks[0]];return false;}
 /* ---- race setup ---- */
 function setup(q,opt){opt=opt||{};const words=q[0].split(' ');const text=q[0];const h=RACE.textHash(text);
-  T={q,words,text,h,src:q[1],typed:words.map(()=>''),wi:0,started:0,ended:0,keystrokes:0,correct:0,incorrect:0,bs:0,rec:[],lastC:0,combo:0,bestCombo:0,wordErr:false,startAt:opt.startAt||performance.now()+3400,state:'count',live:!!opt.live,target:db.target,pacer:true,ghosts:opt.live?[]:ghostsFor(h),peerP:0,peerW:0,ahead:null,fin:{}};
+  T={q,words,text,h,src:q[1],typed:words.map(()=>''),wi:0,started:0,ended:0,keystrokes:0,correct:0,incorrect:0,bs:0,rec:[],lastC:0,combo:0,bestCombo:0,wordErr:false,startAt:(opt.startAt||performance.now()+3400)+(opt.delay||0),base:opt.startAt||performance.now()+3400,delay:opt.delay||0,peerDelay:opt.peerDelay||0,mode:opt.mode||'duel',pacerT:opt.pacer||db.target,state:'count',live:!!opt.live,daily:!!opt.daily,target:db.target,pacer:true,ghosts:opt.live?[]:ghostsFor(h),peerP:0,peerW:0,ahead:null,fin:{},badges:[]};
   cum=[];let c=0;words.forEach(w=>{c+=w.length+1;cum.push(c);});T.total=text.length;
   $('#home').hidden=true;$('#results').hidden=true;$('#race').hidden=false;document.body.classList.remove('typing');
-  $('#t-left').innerHTML=(T.live?'<b>live</b> against '+esc(PEER.name):'<b>pacer</b> at '+db.target+' wpm')+(db.sameTx&&!T.live?' · same quote, try '+(db.sameTx+1):'');
+  const tr=RACE.tier(db.target);$('#t-left').innerHTML=(T.live?(T.mode==='team'?'<b>team</b> with '+esc(PEER.name)+' against the pacer at '+T.pacerT+' · <span class="rmatch">'+esc(RACE.matchLine(MATCH,'team','pacer'))+'</span>':'<b>duel</b> against '+esc(PEER.name)+' · <span class="rmatch">'+esc(RACE.matchLine(MATCH,myName(),PEER.name))+'</span>')+(T.delay>0?' · head start for '+esc(PEER.name)+': '+(T.delay/1000).toFixed(1)+' s':T.peerDelay>0?' · your head start: '+(T.peerDelay/1000).toFixed(1)+' s':''):(T.daily?'<b>today’s quote</b> · ':'')+'<b>pacer</b> at '+db.target+' wpm · <span class="rtier" style="--tc:'+tr.color+'">'+tr.label+'</span>')+(db.sameTx&&!T.live?' · same quote, try '+(db.sameTx+1):'');
   $('#t-right').textContent=T.live?'':(T.ghosts.length?'ghosts: '+T.ghosts.map(g=>g.name).join(', '):'no ghost on this quote yet');
-  $('#src').textContent='';$('#l-wpm').textContent='';$('#l-acc').textContent='';$('#hint').textContent='get ready';$('#combo').textContent='';
-  const players=[{id:'me',kind:'me',name:myName()}];if(T.live)players.push({id:'peer',kind:'peer',name:PEER.name});players.push({id:'pacer',kind:'pacer',name:'pacer'});T.ghosts.forEach(g=>players.push({id:g.id,kind:g.kind,name:g.name}));
+  $('#src').textContent='';$('#l-wpm').textContent='';$('#l-acc').textContent='';$('#hint').textContent=T.live&&T.delay>0?PEER.name+' starts first; your lights hold for '+(T.delay/1000).toFixed(1)+' s more':'get ready';$('#combo').textContent='';peerEl=null;
+  const players=[{id:'me',kind:'me',name:myName()}];if(T.live)players.push({id:'peer',kind:'peer',name:PEER.name});players.push({id:'pacer',kind:'pacer',name:'pacer'+(T.live?' '+T.pacerT:'')});T.ghosts.forEach(g=>players.push({id:g.id,kind:g.kind,name:g.name}));
   track=RACE.Track($('#track'));track.setPlayers(players);
   const W=$('#words');W.innerHTML='';W.style.transform='translateY(0)';wordEls=words.map((w,i)=>{const d=document.createElement('span');d.className='word';W.appendChild(d);return d;});words.forEach((w,i)=>renderWord(i));
-  RACE.sfx.unlock();T.countShown=-1;requestAnimationFrame(loop);$('#tbox').focus();}
-let cum=[],wordEls=[],paceEl=null;
+  RACE.sfx.unlock();T.countShown=-1;$('#track').classList.remove('racing');document.body.classList.remove('rlead');requestAnimationFrame(loop);$('#tbox').focus();}
+let cum=[],wordEls=[],paceEl=null,peerEl=null;
 function renderWord(i){const el=wordEls[i];if(!el)return;const w=T.words[i],t=T.typed[i];let h='';for(let k=0;k<w.length;k++){let c=w[k],cl='';if(k<t.length){if(t[k]===c)cl='ok';else{cl='bad';c=t[k];}}else if(k===t.length&&i===T.wi)cl='cur';h+='<i class="'+cl+'">'+esc(c)+'</i>';}for(let k=w.length;k<t.length;k++)h+='<i class="bad">'+esc(t[k])+'</i>';el.innerHTML=h;el.className='word'+(i===T.wi?' active':'')+(i===T.wi&&t.length>=w.length?' end':'');}
 function scrollWords(){const el=wordEls[T.wi];if(!el)return;const lh=parseFloat(getComputedStyle($('#words')).lineHeight);$('#words').style.transform='translateY('+(-Math.max(0,el.offsetTop-lh))+'px)';}
 function progress(){const t=T.typed[T.wi]||'',w=T.words[T.wi]||'';let k=0;while(k<t.length&&t[k]===w[k])k++;return (T.wi?cum[T.wi-1]:0)+k;}
@@ -292,17 +374,20 @@ function wpmNow(now){const s=(now-T.started)/1000;return s>1?T.lastC/5/(s/60):0;
 /* ---- main loop: countdown, pacer, ghosts, recording, peer progress ---- */
 let lastSend=0;
 function loop(){if(!T||T.state==='done')return;const now=performance.now();
-  if(T.state==='count'){const left=T.startAt-now;const n=Math.ceil(left/1000);if(left<=0){T.state='go';T.started=T.startAt;$('#count').hidden=false;$('#count').innerHTML='<span>GO</span>';RACE.sfx.go();setTimeout(()=>{if($('#count'))$('#count').hidden=true;},700);$('#hint').textContent='';document.body.classList.add('typing');}
-    else if(n!==T.countShown&&n<=3){T.countShown=n;$('#count').hidden=false;$('#count').innerHTML='<span>'+n+'</span>';RACE.sfx.count();}}
-  if(T.state==='go'){const el=now-T.started;const c=progress();if(c!==T.lastC){T.rec.push([Math.round(el),c]);T.lastC=c;}
+  if(T.state==='count'){const left=T.startAt-now;const n=RACE.lightsCount(left);const C=$('#count');if(left<=0){T.state='go';T.started=T.startAt;C.hidden=false;C.innerHTML=RACE.lightsHtml(0);RACE.sfx.go();setTimeout(()=>{C.hidden=true;},650);$('#hint').textContent='';document.body.classList.add('typing');$('#track').classList.add('racing');if(T.live&&(MATCH.me===2||MATCH.peer===2))setTimeout(()=>RACE.callout($('#track'),'matchpoint',MATCH.me===2&&MATCH.peer===2?'deciding race':'match point'),700);}
+    else if(n!==T.countShown){T.countShown=n;C.hidden=false;C.innerHTML=RACE.lightsHtml(left);if(n>0)RACE.sfx.light();}}
+  if(T.state==='count'&&T.live&&T.delay>0&&now>=T.base){$('#hint').textContent=PEER.name+' is off; your lights go in '+Math.max(0,(T.startAt-now)/1000).toFixed(1)+' s';const el0=now-T.base;const pc0=Math.min(T.total,el0/60000*T.pacerT*5);track.set('pacer',{p:pc0/T.total,wpm:T.pacerT});track.set('peer',{p:T.peerP,wpm:T.peerW});}
+  if(T.state==='go'){const el=now-T.started;const elB=now-T.base;const c=progress();if(c!==T.lastC){T.rec.push([Math.round(el),c]);T.lastC=c;}
     const me=T.total?c/T.total:0;const w=wpmNow(now);
-    const pc=Math.min(T.total,el/60000*T.target*5);const pcDone=pc>=T.total;if(pcDone&&!T.fin.pacer){T.fin.pacer=rankNow();RACE.floatText($('#tbox'),'pacer finished','bad');}
-    track.set('pacer',{p:pc/T.total,wpm:T.target,done:pcDone,rank:T.fin.pacer||0});
+    const pc=Math.min(T.total,(T.live?elB:el)/60000*T.pacerT*5);const pcDone=pc>=T.total;if(pcDone&&!T.fin.pacer){T.fin.pacer=rankNow();RACE.floatText($('#tbox'),'pacer finished','bad');}
+    track.set('pacer',{p:pc/T.total,wpm:T.pacerT,done:pcDone,rank:T.fin.pacer||0});
     for(const g of T.ghosts){const gc=RACE.at(g.rec,el);const done=el>=RACE.endOf(g.rec);if(done&&!T.fin[g.id])T.fin[g.id]=rankNow();track.set(g.id,{p:done?1:gc/T.total,wpm:g.wpm,done,rank:T.fin[g.id]||0});}
-    if(T.live){track.set('peer',{p:T.peerP,wpm:T.peerW,done:!!T.fin.peer,rank:T.fin.peer||0});if(LINK&&now-lastSend>100){lastSend=now;LINK.send({t:'p',c,w:r0(w)});}}
-    // overtaking feedback against every rival
-    const rivals=[pc/T.total].concat(T.ghosts.map(g=>Math.min(1,RACE.at(g.rec,el)/T.total))).concat(T.live?[T.peerP]:[]);
-    const lead=rivals.every(r=>me>=r);const was=T.ahead;T.ahead=lead;if(was!==null&&lead!==was&&c>10){if(lead){RACE.sfx.up();RACE.floatText($('#tbox'),'in the lead','good');track.pulse('me','zoom');}else{RACE.sfx.down();}}
+    if(T.live){track.set('peer',{p:T.peerP,wpm:T.peerW,done:!!T.fin.peer,rank:T.fin.peer||0});if(LINK&&now-lastSend>100){lastSend=now;LINK.send({t:'p',c,w:r0(w),k:T.combo,e:T.errSince||0});T.errSince=0;}
+      {const pcC=Math.min(T.total,Math.round(T.peerP*T.total));let wi=0;while(wi<cum.length&&cum[wi]<=pcC)wi++;const before=wi?cum[wi-1]:0;const li=pcC-before;if(peerEl)peerEl.classList.remove('peer');const wd=wordEls[wi];if(wd&&!T.fin.peer){const letters=wd.querySelectorAll('i');peerEl=letters[Math.min(li,letters.length-1)]||null;if(peerEl)peerEl.classList.add('peer');}}}
+    // events against every rival: overtakes, final stretch, last word, neck and neck
+    const rivals=(T.mode==='team'?[pc/T.total]:[pc/T.total].concat(T.live?[T.peerP]:[])).concat(T.ghosts.map(g=>Math.min(1,RACE.at(g.rec,el)/T.total)));
+    for(const e of RACE.events(T,me,rivals,c,T.words.length-T.wi))onEvent(e);
+    const lead=!!T.ahead;document.body.classList.toggle('rlead',lead&&c>10);$('#track').style.setProperty('--rsp',Math.max(0.35,Math.min(2.2,2.2-w/70)).toFixed(2)+'s');
     track.set('me',{p:me,wpm:w,lead});
     // pace underline in the text
     {let wi=0;while(wi<cum.length&&cum[wi]<=pc)wi++;const before=wi?cum[wi-1]:0;const li=Math.floor(pc-before);if(paceEl)paceEl.classList.remove('pace');const wd=wordEls[wi];if(wd){const letters=wd.querySelectorAll('i');paceEl=letters[Math.min(li,letters.length-1)]||null;if(paceEl)paceEl.classList.add('pace');}}
@@ -310,12 +395,15 @@ function loop(){if(!T||T.state==='done')return;const now=performance.now();
     if(el>240000)finish();}
   requestAnimationFrame(loop);}
 function rankNow(){return 1+Object.keys(T.fin).length;}
+function peerNitro(on){const pe=track&&track.get('peer');if(pe)pe.el.querySelector('.rcar').classList.toggle('nitro',!!on);}
+function onEvent(e){const tr=$('#track');switch(e){case 'lead':RACE.sfx.up();RACE.callout(tr,'lead');track.pulse('me','zoom');break;case 'lost':RACE.sfx.down();RACE.callout(tr,'lost');RACE.screenFlash(getComputedStyle(document.documentElement).getPropertyValue('--err').trim()||'#e23b3b');break;case 'final':RACE.sfx.callout();RACE.callout(tr,'final');break;case 'lastword':RACE.callout(tr,'lastword');break;case 'neck':RACE.sfx.heart();if(!T.neckSaid){T.neckSaid=1;RACE.callout(tr,'neck');}break;}}
 /* ---- typing ---- */
 window.addEventListener('keydown',e=>{const tag=(document.activeElement||{}).tagName;if(tag==='INPUT')return;
   if(!T){if(e.key==='Enter'&&!$('#home').hidden){e.preventDefault();startSolo();}return;}
   if(e.key==='Escape'){e.preventDefault();if(T.live)return;if(T.state==='done')goHome();else setup(T.q);return;}
   if(e.key==='Enter'){e.preventDefault();if(T.state==='done'){const b=$('#b-next');if(b&&!b.disabled)b.click();}return;}
   if(e.key==='Tab'){e.preventDefault();return;}
+  if(T.live&&T.state!=='go'&&/^[1-4]$/.test(e.key)){e.preventDefault();react(+e.key-1);return;}
   if(T.state!=='go')return;
   if(e.ctrlKey)return;
   if(e.key==='Backspace'){e.preventDefault();const t=T.typed[T.wi];if(!t.length)return;T.bs++;T.typed[T.wi]=(e.altKey||e.metaKey)?'':t.slice(0,-1);renderWord(T.wi);return;}
@@ -328,48 +416,72 @@ function onChar(ch){const word=T.words[T.wi],typed=T.typed[T.wi];
   else{T.typed[T.wi]=typed+ch;T.incorrect++;bad();}
   renderWord(T.wi);
   if(T.wi===T.words.length-1&&T.typed[T.wi]===word){wordDone();T.wi++;finish();}}
-function bad(){RACE.sfx.err();const b=$('#tbox');b.classList.remove('shake');void b.offsetWidth;b.classList.add('shake');T.wordErr=true;if(T.combo>=5){RACE.floatText($('#tbox'),'combo lost','bad');}T.combo=0;comboUI();}
+function bad(){RACE.sfx.err();T.errSince=(T.errSince||0)+1;const b=$('#tbox');b.classList.remove('shake');void b.offsetWidth;b.classList.add('shake');T.wordErr=true;if(T.combo>=5){RACE.floatText($('#tbox'),'combo lost','bad');}T.combo=0;comboUI();}
 function wordDone(){if(T.wordErr){T.wordErr=false;return;}T.combo++;T.bestCombo=Math.max(T.bestCombo,T.combo);if(T.combo>=5)RACE.sfx.word(T.combo-5);comboUI();if(T.combo===10||T.combo===20||T.combo===30)RACE.floatText($('#tbox'),T.combo+' clean words','good');}
-function comboUI(){const c=$('#combo');c.textContent=T.combo>=3?'x'+T.combo+' clean':'';c.classList.toggle('hot',T.combo>=10);RACE.flash(c,'bump');}
+function comboUI(){const c=$('#combo');c.textContent=T.combo>=3?'x'+T.combo+' clean':'';c.classList.toggle('hot',T.combo>=10);RACE.flash(c,'bump');const me=track&&track.get('me');if(me)me.el.querySelector('.rcar').classList.toggle('nitro',T.combo>=10);}
 /* ---- finish and results ---- */
 function finish(){if(!T||T.state==='done')return;T.ended=performance.now();T.state='done';document.body.classList.remove('typing');if(paceEl)paceEl.classList.remove('pace');
   const ms=T.ended-T.started;const wpm=T.total/5/(ms/60000);const acc=T.keystrokes?100*T.correct/T.keystrokes:0;T.rec.push([Math.round(ms),T.total]);
-  const rank=rankNow();T.fin.me=rank;track.set('me',{p:1,wpm,done:true,rank});
-  const pacerMs=T.total/5/T.target*60000;const beatPacer=ms<=pacerMs;const floorOk=acc>=90;const pass=beatPacer&&floorOk;
+  const rank=rankNow();T.fin.me=rank;track.set('me',{p:1,wpm,done:true,rank});$('#track').classList.remove('racing');document.body.classList.remove('rlead');
+  const pacerMs=T.total/5/T.pacerT*60000;const beatPacer=(T.live?ms+T.delay:ms)<=pacerMs;const floorOk=acc>=90;const pass=beatPacer&&floorOk;
   const vs={pacer:beatPacer};const deltas=[['pacer '+T.target,ms-pacerMs,beatPacer]];
   for(const g of T.ghosts){const gm=RACE.endOf(g.rec);const beat=ms<gm;vs[g.id]=beat;deltas.push([g.name,ms-gm,beat]);}
   const packed=RACE.pack(T.rec);let pb=false;if(!T.live){pb=storeGhost(T.h,'best',{g:packed,wpm:r1(wpm),t:Date.now()});storeGhost(T.h,'last',{g:packed,wpm:r1(wpm),t:Date.now()});}
   const rec={t:Date.now(),h:T.h,wpm:r1(wpm),acc:r1(acc),ms:r0(ms),target:T.target,pass,vs,rank,try:(db.sameTx||0)+1,live:T.live?1:0,combo:T.bestCombo};
   let note='';
-  if(T.live){const fin={ms:r0(ms),wpm:r1(wpm),acc:r1(acc),g:packed,rank};if(LINK)LINK.send({t:'fin',...fin});T.myFin=fin;}
+  if(T.live){const fin={ms:r0(ms),abs:r0(ms+T.delay),wpm:r1(wpm),acc:r1(acc),g:packed,rank,combo:T.bestCombo,badges:[]};T.myFin=fin;}
   else{if(pass){const first=!db.sameTx;db.sameTx=0;db.target+=first?db.step:1;db.streak++;note='Pacer beaten'+(first?'':' on try '+rec.try)+'. Next race: new quote, pacer at '+db.target+' wpm.';}
     else{db.streak=0;db.sameTx++;const why=!floorOk?'Under 90% accuracy, so no pass. ':r0(wpm)+' wpm against the pacer’s '+T.target+'. ';if(db.sameTx>=3){db.sameTx=0;db.target=Math.max(10,db.target-1);note=why+'Three tries on this quote: new quote next, pacer eased to '+db.target+' wpm.';}else{note=why+'Same quote again'+(db.sameTx===2?', last try':'')+'; you know the words now, go harder.';}}}
   if(wpm>db.best){if(db.best)pb=true;db.best=r1(wpm);}
+  const myAbs0=T.live?ms+T.delay:ms;const rivalEnds=[pacerMs].concat(T.ghosts.map(g=>RACE.endOf(g.rec))).concat(PEER.fin?[PEER.fin.abs!=null?PEER.fin.abs:PEER.fin.ms]:[]);const photo=rivalEnds.some(t=>Math.abs(myAbs0-t)<300);
+  if(photo)T.badges.push('photo finish');if(T.incorrect===0)T.badges.push('perfect race');if(T.behind60===true&&rank===1)T.badges.push('comeback');if(pb)T.badges.push('personal best');
+  if(!T.live&&pass){const t0=RACE.tier(T.target),t1=RACE.tier(db.target);if(t1.idx>t0.idx){T.badges.push('tier up: '+t1.label);T.tierUp=t1;}}
+  rec.badges=T.badges.slice();if(T.live){T.myFin.badges=T.badges.slice();if(LINK)LINK.send({t:'fin',...T.myFin});}
   db.tests.push(rec);if(db.tests.length>1500)db.tests=db.tests.slice(-1500);save();
   showResults({rec,ms,wpm,acc,pass,rank,deltas,note,pb,floorOk});if(T.live&&PEER.fin)settleLive();}
 function fmtDelta(d){const s=Math.abs(d)/1000;return (d<=0?'−':'+')+(s<10?s.toFixed(2):s.toFixed(1))+' s';}
-function showResults(o){const R=$('#results');R.hidden=false;$('#race').hidden=true;const live=T.live;
+function peerAbs(){return PEER.fin?(PEER.fin.abs!=null?PEER.fin.abs:PEER.fin.ms):null;}
+function myAbs(){return T.myFin?T.myFin.abs:null;}
+function scorecard(){if(!T.live)return '';const f=PEER.fin;const row=(l,a,b)=>'<tr><td class="sub">'+l+'</td><td>'+a+'</td><td>'+(f?b:'…')+'</td></tr>';return '<table class="rscore"><tr><th></th><th style="color:'+RACE.COLORS.me+'">'+esc(myName())+'</th><th style="color:'+RACE.COLORS.peer+'">'+esc(PEER.name)+'</th></tr>'+row('wpm',r0(T.myFin.wpm),f&&r0(f.wpm))+row('accuracy',r1(T.myFin.acc)+'%',f&&r1(f.acc)+'%')+row('time',(T.myFin.abs/1000).toFixed(1)+' s'+(T.delay?' (incl. '+(T.delay/1000).toFixed(1)+' s hold)':''),f&&((f.abs!=null?f.abs:f.ms)/1000).toFixed(1)+' s')+row('best combo','x'+T.bestCombo,f&&'x'+(f.combo||0))+row('badges',T.badges.join(', ')||'—',f&&((f.badges||[]).join(', ')||'—'))+'</table>';}
+function showResults(o,quiet){T.o=o;const R=$('#results');R.hidden=false;$('#race').hidden=true;const live=T.live;
   const nPlayers=2+(live?1:0)+T.ghosts.length;const rankTxt=RACE.ordinal(o.rank)+' <span class="sub" style="font-size:1rem;font-weight:400">of '+nPlayers+'</span>';
-  let h='<div class="res"><div class="nums"><div class="rank '+(o.rank===1?'win':'lose')+'" id="rank">'+rankTxt+'</div><div><div class="lbl">wpm</div><div class="huge">'+r0(o.wpm)+'</div></div><div><div class="lbl">accuracy</div><div style="font-size:1.6rem;font-weight:700;font-family:var(--ui)" class="'+(o.floorOk?'':'err')+'">'+r1(o.acc)+'%</div></div>'+(o.pb?'<div class="streak">personal best</div>':'')+(T.bestCombo>=10?'<div class="sub">best combo x'+T.bestCombo+'</div>':'')+'</div>';
-  h+='<div><div class="lbl" style="margin-bottom:.4rem">against</div><div class="vs" id="vs">'+(live?'<div><b style="color:var(--p-peer,#f7768e)">'+esc(PEER.name)+'</b><span class="d" id="peer-d">'+(PEER.fin?fmtDelta(o.ms-PEER.fin.ms)+' ('+r0(PEER.fin.wpm)+' wpm)':'still typing…')+'</span></div>':'')+o.deltas.map(([n,d,b])=>'<div><b>'+esc(n)+'</b><span class="d '+(b?'ok':'err')+'">'+fmtDelta(d)+'</span></div>').join('')+'</div>';
+  let h='<div class="res"><div class="nums"><div class="rank '+(o.rank===1?'win':'lose')+'" id="rank">'+rankTxt+'</div><div><div class="lbl">wpm</div><div class="huge">'+r0(o.wpm)+'</div></div><div><div class="lbl">accuracy</div><div style="font-size:1.6rem;font-weight:700;font-family:var(--ui)" class="'+(o.floorOk?'':'err')+'">'+r1(o.acc)+'%</div></div>'+(T.bestCombo>=10?'<div class="sub">best combo x'+T.bestCombo+'</div>':'')+'</div>';
+  h+='<div><div class="lbl" style="margin-bottom:.4rem">against</div><div class="vs" id="vs">'+(live?'<div><b style="color:var(--p-peer,#f7768e)">'+esc(PEER.name)+'</b><span class="d" id="peer-d">'+(PEER.fin?fmtDelta(myAbs()-peerAbs())+' ('+r0(PEER.fin.wpm)+' wpm)':'still typing…')+'</span></div>':'')+o.deltas.map(([n,d,b])=>'<div><b>'+esc(n)+'</b><span class="d '+(b?'ok':'err')+'">'+fmtDelta(d)+'</span></div>').join('')+'</div>'+scorecard();
   h+='<div class="sub" style="margin-top:.8rem">“'+esc(T.text)+'”'+(T.src?' — '+esc(T.src):'')+'</div></div></div>';
+  h+='<div id="badges">'+T.badges.map(b=>'<span class="rbadge'+(b==='personal best'?' pb':'')+'">'+esc(b)+'</span>').join('')+'</div>';
+  h+='<canvas class="rreplay" id="replay"></canvas><div class="sub" id="gap" style="margin-top:.3rem"></div>';
   if(o.note)h+='<div class="verdict">'+esc(o.note)+'</div>';
-  if(live)h+='<div class="verdict" id="live-note">'+(PEER.fin?liveVerdict(o):'Waiting for '+esc(PEER.name)+' to finish…')+'</div>';
-  h+='<div class="row" style="margin-top:1rem"><button class="cta" id="b-next" style="font-size:1rem;padding:.6rem 1.2rem">'+(live?(IS_HOST?'Rematch':'Ready for a rematch'):(o.pass?'Next quote':'Same quote again'))+'</button>'+(live?'':'<button id="b-share">Share my ghost</button>')+(live?'<button id="b-leave">Leave</button>':'<button id="b-home">Home</button>')+'<span class="sub"><span class="kbd">Enter</span>'+(live?'':' &nbsp; <span class="kbd">Esc</span> home')+'</span></div>';
-  R.innerHTML=h;
+  if(live)h+='<div class="verdict" id="live-note">'+(PEER.fin?esc(liveVerdict(o)):'Waiting for '+esc(PEER.name)+' to finish…')+'</div><div class="row" style="margin-top:.6rem"><span class="sub" style="font-size:.85rem">react:</span>'+REACTS.map((r,i)=>'<button class="small" data-react="'+i+'">'+r+' <span class="kbd">'+(i+1)+'</span></button>').join('')+'</div>';
+  h+='<div class="row" style="margin-top:1rem"><button class="cta" id="b-next" style="font-size:1rem;padding:.6rem 1.2rem">'+(live?(IS_HOST?'Rematch':'Ready for a rematch'):(o.pass?'Next quote':'Same quote again'))+'</button>'+(live?'':'<button id="b-share">'+(T.daily?'Share today’s run':'Share my ghost')+'</button>')+(live?'<button id="b-leave">Leave</button>':'<button id="b-home">Home</button>')+'<span class="sub"><span class="kbd">Enter</span>'+(live?'':' &nbsp; <span class="kbd">Esc</span> home')+'</span></div>';
+  R.innerHTML=h;drawReplay();R.querySelectorAll('[data-react]').forEach(b=>b.onclick=()=>react(+b.dataset.react));
   if(!live){$('#b-next').onclick=()=>{if(o.pass)startSolo();else setup(T.q);};$('#b-home').onclick=goHome;$('#b-share').onclick=shareGhost;}
-  else{$('#b-next').onclick=()=>{$('#b-next').disabled=true;$('#b-next').textContent='Waiting for '+PEER.name+'…';if(IS_HOST){T.hostReady=true;maybeRematch();}else LINK.send({t:'ready'});};$('#b-leave').onclick=()=>{leaveLive();goHome();};}
-  if(!live){if(o.pass){RACE.sfx.win();RACE.flash(R,'rwin');RACE.confetti($('#conf'),[mainColor(),'#ffffff','#7aa2f7']);}else RACE.sfx.lose();if(o.pb)setTimeout(()=>RACE.sfx.pb(),500);}}
+  else{$('#b-next').onclick=()=>{$('#b-next').disabled=true;$('#b-next').textContent='Waiting for '+PEER.name+'…';if(IS_HOST){T.hostReady=true;maybeRematch();}else{T.sentReady=true;LINK.send({t:'ready'});}};$('#b-leave').onclick=()=>{leaveLive();goHome();};if(T.hostReady||T.sentReady){const b=$('#b-next');b.disabled=true;b.textContent='Waiting for '+PEER.name+'…';}}
+  if(quiet)return;
+  if(T.badges.includes('photo finish'))RACE.sfx.photo();
+  if(!live){if(o.pass){RACE.sfx.win();RACE.flash(R,'rwin');RACE.confetti($('#conf'),[mainColor(),'#ffffff','#7aa2f7']);}else RACE.sfx.lose();if(o.pb)setTimeout(()=>RACE.sfx.pb(),500);if(T.tierUp){const tu=T.tierUp;setTimeout(()=>{RACE.sfx.tierup();const R2=$('#results');if(R2&&!R2.hidden)RACE.callout(R2,'tier',tu.label);},900);}}}
+function drawReplay(){const cv=$('#replay');if(!cv||!T)return;const lines=[{name:myName(),color:RACE.COLORS.me,rec:T.rec,width:2.5},{name:'pacer '+T.target,color:RACE.COLORS.pacer,rate:T.target,dash:[4,4]}];for(const g of T.ghosts)lines.push({name:g.name,color:RACE.COLORS[g.kind],rec:g.rec});if(T.live&&PEER.fin&&PEER.fin.g)lines.push({name:PEER.name,color:RACE.COLORS.peer,rec:RACE.unpack(PEER.fin.g)});
+  RACE.replay(cv,lines,T.total);const rival=T.live&&PEER.fin&&PEER.fin.g?{name:PEER.name,rec:RACE.unpack(PEER.fin.g)}:T.ghosts.length?{name:T.ghosts[0].name,rec:T.ghosts[0].rec}:{name:'the pacer',rate:T.target};
+  const ga=RACE.gapAnalysis(T.rec,rival,cum,T.words,T.total);const g=$('#gap');if(!ga||(!ga.lost&&!ga.gain)){g.textContent='Even pace against '+rival.name+' all the way through.';return;}
+  g.textContent='Against '+rival.name+': '+(ga.lost?'you lost most time on '+ga.lost.phrase+' (+'+(ga.lost.ms/1000).toFixed(1)+' s)':'')+(ga.lost&&ga.gain?' and ':'')+(ga.gain?'gained most on '+ga.gain.phrase+' (−'+(ga.gain.ms/1000).toFixed(1)+' s)':'')+'.';}
 function mainColor(){return getComputedStyle(document.documentElement).getPropertyValue('--main').trim()||'#e2b714';}
-function liveVerdict(o){const d=o.ms-PEER.fin.ms;const me=o.ms<=PEER.fin.ms;return me?'You won by '+fmtDelta(-d).replace('−','')+'. '+r0(o.wpm)+' against '+r0(PEER.fin.wpm)+' wpm.':PEER.name+' won by '+fmtDelta(-d).replace('−','')+'. '+r0(PEER.fin.wpm)+' against your '+r0(o.wpm)+' wpm.';}
-function settleLive(){if(!T||!T.myFin||!PEER.fin||T.settled)return;T.settled=true;const me=T.myFin.ms<=PEER.fin.ms;if(me)db.live.w++;else db.live.l++;const last=db.tests[db.tests.length-1];if(last&&last.live){last.win=me?1:0;last.opp=PEER.fin.wpm;}
+function liveVerdict(o){const pa=peerAbs(),ma=myAbs();const d=ma-pa;if(T.mode==='team'){const pacerMs=T.total/5/T.pacerT*60000;const meOk=ma<=pacerMs&&T.myFin.acc>=90,peerOk=pa<=pacerMs&&PEER.fin.acc>=90;if(meOk&&peerOk)return 'Team win. You both beat the pacer; the slower finisher had '+(Math.abs(Math.max(ma,pa)-pacerMs)/1000).toFixed(1)+' s to spare.';if(!meOk&&!peerOk)return 'The pacer beat you both. '+r0(T.myFin.wpm)+' and '+r0(PEER.fin.wpm)+' wpm against '+T.pacerT+'; go again together.';return meOk?'You made it by '+fmtDelta(ma-pacerMs).replace('−','')+', '+PEER.name+' missed by '+fmtDelta(pa-pacerMs).replace('+','')+'. A team win needs both.':PEER.name+' made it by '+fmtDelta(pa-pacerMs).replace('−','')+', you missed by '+fmtDelta(ma-pacerMs).replace('+','')+'. A team win needs both.';}
+  const me=ma<=pa;return me?'You won by '+fmtDelta(-d).replace('−','')+'. '+r0(o.wpm)+' against '+r0(PEER.fin.wpm)+' wpm.':PEER.name+' won by '+fmtDelta(-d).replace('−','')+'. '+r0(PEER.fin.wpm)+' against your '+r0(o.wpm)+' wpm.';}
+function teamWon(){const pacerMs=T.total/5/T.pacerT*60000;return myAbs()<=pacerMs&&T.myFin.acc>=90&&peerAbs()<=pacerMs&&PEER.fin.acc>=90;}
+function react(i){const r=REACTS[i];if(!r||!LINK||!LINK.open)return;LINK.send({t:'ev',k:'react',text:r});showReact(myName(),r,true);}
+function showReact(who,text,mine){const host=!$('#results').hidden?$('#results'):$('#track');RACE.callout(host,'react',who+': '+text);if(!mine)RACE.sfx.callout();}
+function settleLive(){if(!T||!T.myFin||!PEER.fin||T.settled)return;T.settled=true;const me=T.mode==='team'?teamWon():myAbs()<=peerAbs();if(me)db.live.w++;else db.live.l++;if(me)MATCH.me++;else MATCH.peer++;const matchOver=MATCH.me>=3||MATCH.peer>=3;const last=db.tests[db.tests.length-1];if(last&&last.live){last.win=me?1:0;last.opp=PEER.fin.wpm;last.mode=T.mode;}
+  if(T.o)showResults(T.o,true);
   if(PEER.fin.g){storeGhost(T.h,'friend',{g:PEER.fin.g,wpm:PEER.fin.wpm,name:PEER.name,t:Date.now()});}save();
-  const rk=$('#rank');if(rk){rk.innerHTML=(me?'1st':RACE.ordinal(Math.max(2,T.fin.me||2)))+' <span class="sub" style="font-size:1rem;font-weight:400">of '+(3+T.ghosts.length)+'</span>';rk.className='rank '+(me?'win':'lose');}const pd=$('#peer-d');if(pd)pd.textContent=fmtDelta(T.myFin.ms-PEER.fin.ms)+' ('+r0(PEER.fin.wpm)+' wpm)';const ln=$('#live-note');if(ln)ln.textContent=liveVerdict({ms:T.myFin.ms,wpm:T.myFin.wpm});
-  if(me){RACE.sfx.win();RACE.flash($('#results'),'rwin');RACE.confetti($('#conf'),[mainColor(),'#ffffff','#7aa2f7']);}else RACE.sfx.lose();}
+  const rk=$('#rank');if(rk){rk.innerHTML=(T.mode==='team'?(me?'team win':'pacer wins'):(me?'1st':RACE.ordinal(Math.max(2,T.fin.me||2)))+' <span class="sub" style="font-size:1rem;font-weight:400">of '+(3+T.ghosts.length)+'</span>');rk.className='rank '+(me?'win':'lose');}
+  const ln=$('#live-note');const mn=T.mode==='team'?['team','pacer']:[myName(),PEER.name];if(ln)ln.innerHTML=esc(liveVerdict({ms:T.myFin.ms,wpm:T.myFin.wpm}))+' <span class="rmatch">'+esc(matchOver?(MATCH.me>MATCH.peer?(T.mode==='team'?'Team takes the match ':'You won the match ')+MATCH.me+' – '+MATCH.peer+'.':(T.mode==='team'?'The pacer takes the match ':PEER.name+' won the match ')+MATCH.peer+' – '+MATCH.me+'.'):mn[0]+' '+MATCH.me+' – '+MATCH.peer+' '+mn[1]+', first to 3')+'</span>';
+  if(PEER.fin.badges&&PEER.fin.badges.includes('perfect race'))RACE.callout($('#results'),'perfect',PEER.name+': perfect race');
+  if(matchOver){if(MATCH.me>MATCH.peer){RACE.sfx.matchwin();RACE.flash($('#results'),'rwin');RACE.confetti($('#conf'),[mainColor(),'#ffffff','#7aa2f7'],160);setTimeout(()=>RACE.confetti($('#conf'),[mainColor(),'#ffffff','#7aa2f7'],120),600);}else RACE.sfx.lose();MATCH={me:0,peer:0};}
+  else if(me){RACE.sfx.win();RACE.flash($('#results'),'rwin');RACE.confetti($('#conf'),[mainColor(),'#ffffff','#7aa2f7']);}else RACE.sfx.lose();}
 function shareGhost(){const g=db.ghosts[T.h]&&db.ghosts[T.h].last;if(!g)return;const url=RACE.link(location.href,{h:T.h,wpm:g.wpm,name:myName(),g:g.g});const done=()=>toast('Ghost link copied. Whoever opens it races your run on this quote.');if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(done,()=>prompt('Copy this link',url));else prompt('Copy this link',url);}
 function goHome(){T=null;$('#race').hidden=true;$('#results').hidden=true;$('#home').hidden=false;renderHome();}
 function startSolo(){if(LINK)leaveLive();const same=T&&!T.live&&db.sameTx>0;if(!T)db.sameTx=0;setup(same?T.q:pickQuote());}
 $('#m-solo').onclick=()=>{T=null;db.sameTx=0;startSolo();};
+$('#m-daily').onclick=()=>{if(LINK)leaveLive();T=null;db.sameTx=0;setup(QUOTES[RACE.dailyIndex(QUOTES.length)],{daily:true});};
 /* ---- live: host and join ---- */
 function lobby(html){const L=$('#lobby');L.hidden=false;L.innerHTML=html;}
 function leaveLive(){if(LINK){LINK.send({t:'bye'});LINK.close();}LINK=null;SYNC=null;PEER={name:'friend',ready:false,fin:null};IS_HOST=false;$('#lobby').hidden=true;}
@@ -377,21 +489,27 @@ function wireLink(){SYNC=RACE.Sync();
   return {
     onReady(code){lobby('<h2>Your race code</h2><div class="code" id="code">'+code+'</div><p class="sub">Send the code and this page’s link. <button class="link" id="b-copy">copy an invite link</button></p><p class="sub"><span class="dot"></span>waiting for a friend to join…</p><p><button id="b-cancel">cancel</button></p>');
       $('#b-cancel').onclick=()=>{leaveLive();};$('#b-copy').onclick=()=>{const url=location.href.split('#')[0]+'#join='+code;const done=()=>toast('Invite link copied.');if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(done,()=>prompt('Copy this link',url));else prompt('Copy this link',url);};},
-    onOpen(){LINK.send({t:'hi',name:myName()});if(!IS_HOST)SYNC.ping(LINK);
-      lobby('<h2><span class="dot on"></span>Connected'+(PEER.name!=='friend'?' to '+esc(PEER.name):'')+'</h2><p class="sub" id="lobby-sub">'+(IS_HOST?'Press Start when you are both ready. The same quote appears on both screens and the countdown is shared.':'The host starts the race. Keep your hands on the keys.')+'</p>'+(IS_HOST?'<p><button class="cta" id="b-start">Start the race</button> <button id="b-cancel">leave</button></p>':'<p><button id="b-cancel">leave</button></p>'));
-      $('#b-cancel').onclick=()=>{leaveLive();goHome();};if(IS_HOST)$('#b-start').onclick=()=>hostStart();RACE.sfx.finish();},
+    onOpen(){MATCH={me:0,peer:0};LINK.send({t:'hi',name:myName(),target:db.target});if(!IS_HOST)SYNC.ping(LINK);
+      lobby('<h2><span class="dot on"></span>Connected'+(PEER.name!=='friend'?' to '+esc(PEER.name):'')+'</h2><p class="sub" id="lobby-sub">'+(IS_HOST?lobbyHostText():'The host picks duel or team and starts the race. Keep your hands on the keys.')+'</p>'+(IS_HOST?'<p class="row"><button class="cta" id="b-start">Start the race</button><button id="b-mode">mode: duel</button><button id="b-hcap">fair start: on</button><button id="b-cancel">leave</button></p>':'<p><button id="b-cancel">leave</button></p>'));
+      $('#b-cancel').onclick=()=>{leaveLive();goHome();};if(IS_HOST){$('#b-start').onclick=()=>hostStart();$('#b-mode').onclick=e=>{MODE=MODE==='duel'?'team':'duel';e.target.textContent='mode: '+MODE;$('#lobby-sub').innerHTML=lobbyHostText();};$('#b-hcap').onclick=e=>{HCAP=!HCAP;e.target.textContent='fair start: '+(HCAP?'on':'off');$('#lobby-sub').innerHTML=lobbyHostText();};}RACE.sfx.finish();},
     onData(d){switch(d.t){
-      case 'hi':{PEER.name=String(d.name||'friend').slice(0,18)||'friend';const h2=$('#lobby h2');if(h2)h2.innerHTML='<span class="dot on"></span>Connected to '+esc(PEER.name);if(track&&T&&T.live)track.rename('peer',PEER.name);break;}
+      case 'hi':{PEER.name=String(d.name||'friend').slice(0,18)||'friend';if(d.target)PEER.target=+d.target;const ls=$('#lobby-sub');if(ls&&IS_HOST)ls.innerHTML=lobbyHostText();const h2=$('#lobby h2');if(h2)h2.innerHTML='<span class="dot on"></span>Connected to '+esc(PEER.name);if(track&&T&&T.live)track.rename('peer',PEER.name);break;}
       case 'ping':LINK.send({t:'pong',a:d.a,b:performance.now()});break;
       case 'pong':SYNC.pong(d);break;
-      case 'race':{const q=[String(d.text||''),String(d.src||'')];if(!q[0])break;PEER.fin=null;PEER.ready=false;const startAt=d.startAt-(IS_HOST?0:SYNC.offset);setup(q,{live:true,startAt});break;}
-      case 'p':if(T&&T.live){T.peerP=Math.max(0,Math.min(1,(d.c||0)/T.total));T.peerW=d.w||0;}break;
-      case 'fin':if(T&&T.live){PEER.fin=d;if(!T.fin.peer)T.fin.peer=rankNow();if(track)track.set('peer',{p:1,wpm:d.wpm,done:true,rank:T.fin.peer});if(T.state!=='done')RACE.floatText($('#tbox'),PEER.name+' finished','bad');settleLive();}break;
+      case 'race':{const q=[String(d.text||''),String(d.src||'')];if(!q[0])break;PEER.fin=null;PEER.ready=false;const startAt=d.startAt-(IS_HOST?0:SYNC.offset);if(T&&T.live&&T.mode!==(d.mode||'duel'))MATCH={me:0,peer:0};setup(q,{live:true,startAt,mode:d.mode||'duel',delay:IS_HOST?(d.delayHost||0):(d.delayPeer||0),peerDelay:IS_HOST?(d.delayPeer||0):(d.delayHost||0),pacer:d.pacer||db.target});break;}
+      case 'p':if(T&&T.live){T.peerP=Math.max(0,Math.min(1,(d.c||0)/T.total));T.peerW=d.w||0;const k=d.k||0;if(k>=10&&!(T.peerK>=10))RACE.callout($('#track'),'hot',PEER.name+' on fire');T.peerK=k;peerNitro(k>=10);if(d.e)track.pulse('peer','rstumble');}break;
+      case 'ev':if(d.k==='react')showReact(PEER.name,String(d.text||'').slice(0,20),false);break;
+      case 'fin':if(T&&T.live){PEER.fin=d;if(!T.fin.peer)T.fin.peer=rankNow();if(track)track.set('peer',{p:1,wpm:d.wpm,done:true,rank:T.fin.peer});if(peerEl){peerEl.classList.remove('peer');peerEl=null;}if(T.state!=='done')RACE.callout($('#track'),'bad',PEER.name+' finished');settleLive();}break;
       case 'ready':PEER.ready=true;if(IS_HOST)maybeRematch();else{const b=$('#b-next');if(b&&b.disabled)b.textContent=PEER.name+' is ready; waiting for the host…';}break;
       case 'bye':{const who=PEER.name;toast(who+' left the race.');leaveLive();if(T&&T.live&&T.state!=='done'){goHome();}else if(T&&T.live){const b=$('#b-next');if(b){b.disabled=true;b.textContent=who+' left';}}break;}}},
     onClose(){toast('Connection closed.');if(T&&T.live&&T.state!=='done')goHome();leaveLive();},
     onError(e){toast(RACE.errName(e),4000);if(!(LINK&&LINK.open)){leaveLive();goHome();}}};}
-function hostStart(){if(!LINK||!LINK.open)return;const q=pickQuote();const startAt=performance.now()+3800;LINK.send({t:'race',text:q[0],src:q[1],startAt});PEER.fin=null;PEER.ready=false;T=null;setup(q,{live:true,startAt});}
+function lobbyHostText(){const pt=PEER.target;const mine=db.target;let s=MODE==='team'?'<b>Team</b>: you both race the pacer at '+(pt?Math.round((mine+pt)/2):mine)+' wpm (the average of your targets). The team wins only if you both beat it.':'<b>Duel</b>: first across the line wins, best of three races per match.';
+  if(MODE==='duel'&&HCAP&&pt&&Math.abs(pt-mine)>=6)s+=' Fair start is on: targets '+mine+' and '+pt+', so '+(mine>pt?'your':PEER.name+'’s')+' lights hold a little longer (up to 10 s) to close most of the gap. Both can win.';else if(MODE==='duel'&&pt)s+=' Targets '+mine+' and '+pt+(HCAP?'; close enough for a level start.':'; level start.');
+  return s+' Press Start when you are both ready.';}
+function hostStart(){if(!LINK||!LINK.open)return;const q=pickQuote();const startAt=performance.now()+3800;const total=q[0].length;const pt=PEER.target||db.target,mine=db.target;let delayHost=0,delayPeer=0;
+  if(MODE==='duel'&&HCAP&&Math.abs(pt-mine)>=6){const slow=Math.min(pt,mine),fast=Math.max(pt,mine);const gap=Math.min(10000,total/5*(60000/slow-60000/fast)*0.8);if(mine>pt)delayHost=Math.round(gap);else delayPeer=Math.round(gap);}
+  const pacer=MODE==='team'?Math.round((mine+pt)/2):mine;LINK.send({t:'race',text:q[0],src:q[1],startAt,mode:MODE,delayHost,delayPeer,pacer});if(T&&T.live&&T.mode!==MODE)MATCH={me:0,peer:0};PEER.fin=null;PEER.ready=false;T=null;setup(q,{live:true,startAt,mode:MODE,delay:delayHost,peerDelay:delayPeer,pacer});}
 function maybeRematch(){if(IS_HOST&&T&&T.hostReady&&PEER.ready)hostStart();}
 async function host(){leaveLive();IS_HOST=true;lobby('<p class="sub">Connecting to the matchmaking server…</p>');LINK=RACE.Link(wireLink());try{await LINK.host(RACE.code());}catch(e){toast(RACE.errName(e.message),4000);leaveLive();}}
 async function join(code){code=RACE.cleanCode(code);if(code.length<4){toast('A code has four letters.');return;}leaveLive();IS_HOST=false;lobby('<p class="sub">Joining '+code+'…</p>');LINK=RACE.Link(wireLink());try{await LINK.join(code);}catch(e){toast(RACE.errName(e.message),4000);leaveLive();}}
