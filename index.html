@@ -62,9 +62,11 @@ h2{font-family:var(--ui);font-size:1.1rem;font-weight:600;margin:0 0 .5rem}
 @keyframes sh{25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
 #words{display:flex;flex-wrap:wrap;gap:0 .5em;transition:transform .15s}
 .word{white-space:nowrap;position:relative;border-right:2px solid transparent}
-.word i{font-style:normal;color:color-mix(in srgb,var(--fg) 42%,var(--bg));border-left:2px solid transparent;margin-left:-2px;transition:color .05s}
+.word i{font-style:normal;color:color-mix(in srgb,var(--fg) 58%,var(--bg));border-left:2px solid transparent;margin-left:-2px;transition:color .05s}
 .word.active i:not(.ok):not(.bad){color:color-mix(in srgb,var(--fg) 88%,var(--bg))}
-.word i.ok{color:var(--fg)} .word i.bad{color:var(--err)}
+.word i.ok{color:var(--fg)}
+/* finished words fade back so the word you are on stands out */
+.word.done i.ok{color:color-mix(in srgb,var(--fg) 20%,var(--bg))} .word i.bad{color:var(--err)}
 .word i.cur{border-left-color:var(--main);animation:blink 1s step-end infinite}
 .word.end{border-right-color:var(--main)}
 @keyframes blink{50%{border-color:transparent}}
@@ -626,7 +628,7 @@ function pickQuote(){const [lo,hi]=QLEN[db.qlen]||QLEN.any;const pool=QUOTES.fil
 function ghostsFor(h){const g=db.ghosts[h]||{};const out=[];if(g.best)out.push({id:'ghost',kind:'ghost',name:'your ghost '+r0(g.best.wpm),rec:RACE.unpack(g.best.g),wpm:g.best.wpm});if(FRIEND&&FRIEND.h===h)out.push({id:'friend',kind:'friend',name:(FRIEND.name||'friend')+' '+r0(FRIEND.wpm),rec:RACE.unpack(FRIEND.g),wpm:FRIEND.wpm});else if(g.friend)out.push({id:'friend',kind:'friend',name:(g.friend.name||'friend')+' '+r0(g.friend.wpm),rec:RACE.unpack(g.friend.g),wpm:g.friend.wpm});return out;}
 function storeGhost(h,kind,o){const g=db.ghosts[h]||(db.ghosts[h]={});if(kind==='best'){if(!g.best||o.wpm>g.best.wpm){g.best=o;return true;}return false;}g[kind]=o;const ks=Object.keys(db.ghosts);if(ks.length>160)delete db.ghosts[ks[0]];return false;}
 /* ---- race setup ---- */
-function setup(q,opt){TURF.stop();opt=opt||{};const words=q[0].split(' ');const text=q[0];const h=RACE.textHash(text);
+function setup(q,opt){stopPG();opt=opt||{};const words=q[0].split(' ');const text=q[0];const h=RACE.textHash(text);
   T={q,words,text,h,src:q[1],typed:words.map(()=>''),wi:0,started:0,ended:0,keystrokes:0,correct:0,incorrect:0,bs:0,rec:[],lastC:0,combo:0,bestCombo:0,wordErr:false,startAt:(opt.startAt||performance.now()+3400)+(opt.delay||0),base:opt.startAt||performance.now()+3400,delay:opt.delay||0,peerDelay:opt.peerDelay||0,mode:opt.mode||'duel',pacerT:opt.pacer||db.target,state:'count',live:!!opt.live,daily:!!opt.daily,target:db.target,pacer:true,ghosts:opt.live?[]:ghostsFor(h),peerP:0,peerW:0,ahead:null,fin:{},badges:[]};
   cum=[];let c=0;words.forEach(w=>{c+=w.length+1;cum.push(c);});T.total=text.length;
   $('#home').hidden=true;$('#results').hidden=true;$('#race').hidden=false;document.body.classList.remove('typing');
@@ -638,7 +640,7 @@ function setup(q,opt){TURF.stop();opt=opt||{};const words=q[0].split(' ');const 
   const W=$('#words');W.innerHTML='';W.style.transform='translateY(0)';wordEls=words.map((w,i)=>{const d=document.createElement('span');d.className='word';W.appendChild(d);return d;});words.forEach((w,i)=>renderWord(i));
   RACE.sfx.unlock();T.countShown=-1;$('#track').classList.remove('racing');document.body.classList.remove('rlead');requestAnimationFrame(loop);if(!RACE.touchFocused())$('#tbox').focus();}
 let cum=[],wordEls=[],paceEl=null,peerEl=null;
-function renderWord(i){const el=wordEls[i];if(!el)return;const w=T.words[i],t=T.typed[i];let h='';for(let k=0;k<w.length;k++){let c=w[k],cl='';if(k<t.length){if(t[k]===c)cl='ok';else{cl='bad';c=t[k];}}else if(k===t.length&&i===T.wi)cl='cur';h+='<i class="'+cl+'">'+esc(c)+'</i>';}for(let k=w.length;k<t.length;k++)h+='<i class="bad">'+esc(t[k])+'</i>';el.innerHTML=h;el.className='word'+(i===T.wi?' active':'')+(i===T.wi&&t.length>=w.length?' end':'');}
+function renderWord(i){const el=wordEls[i];if(!el)return;const w=T.words[i],t=T.typed[i];let h='';for(let k=0;k<w.length;k++){let c=w[k],cl='';if(k<t.length){if(t[k]===c)cl='ok';else{cl='bad';c=t[k];}}else if(k===t.length&&i===T.wi)cl='cur';h+='<i class="'+cl+'">'+esc(c)+'</i>';}for(let k=w.length;k<t.length;k++)h+='<i class="bad">'+esc(t[k])+'</i>';el.innerHTML=h;el.className='word'+(i===T.wi?' active':i<T.wi?' done':'')+(i===T.wi&&t.length>=w.length?' end':'');}
 function scrollWords(){const el=wordEls[T.wi];if(!el)return;const lh=parseFloat(getComputedStyle($('#words')).lineHeight);$('#words').style.transform='translateY('+(-Math.max(0,el.offsetTop-lh))+'px)';}
 function progress(){const t=T.typed[T.wi]||'',w=T.words[T.wi]||'';let k=0;while(k<t.length&&t[k]===w[k])k++;return (T.wi?cum[T.wi-1]:0)+k;}
 function wpmNow(now){const s=(now-T.started)/1000;return s>1?T.lastC/5/(s/60):0;}
@@ -671,8 +673,8 @@ function rankNow(){return 1+Object.keys(T.fin).length;}
 function peerNitro(on){const pe=track&&track.get('peer');if(pe)pe.el.querySelector('.rcar').classList.toggle('nitro',!!on);}
 function onEvent(e){const tr=$('#track');switch(e){case 'lead':RACE.sfx.up();RACE.callout(tr,'lead');track.pulse('me','zoom');RACE.flash(document.body,'rleadflash');break;case 'lost':RACE.sfx.down();RACE.callout(tr,'lost');RACE.screenFlash(getComputedStyle(document.documentElement).getPropertyValue('--err').trim()||'#e23b3b');break;case 'final':RACE.sfx.callout();RACE.callout(tr,'final');break;case 'lastword':RACE.callout(tr,'lastword');break;case 'neck':RACE.sfx.heart();if(!T.neckSaid){T.neckSaid=1;RACE.callout(tr,'neck');}break;}}
 /* ---- typing ---- */
-window.addEventListener('keydown',e=>{const tag=(document.activeElement||{}).tagName;if(tag==='INPUT'&&!RACE.touchFocused())return;if(TURF.key(e))return;
-  if(!T){if(e.key==='Enter'&&!$('#home').hidden){e.preventDefault();if(GAME==='turf')TURF.solo();else startSolo();}return;}
+window.addEventListener('keydown',e=>{const tag=(document.activeElement||{}).tagName;if(tag==='INPUT'&&!RACE.touchFocused())return;if(TURF.key(e)||XG.some(g=>g.key(e)))return;
+  if(!T){if(e.key==='Enter'&&!$('#home').hidden){e.preventDefault();const xg=xgOf(GAME);if(xg)xg.solo();else if(GAME==='turf')TURF.solo();else startSolo();}return;}
   if(e.key==='Escape'){e.preventDefault();if(T.live)return;if(T.state==='done')goHome();else setup(T.q);return;}
   if(e.key==='Enter'){e.preventDefault();if(T.state==='done'){const b=$('#b-next');if(b&&!b.disabled)b.click();}return;}
   if(e.key==='Tab'){e.preventDefault();return;}
@@ -742,7 +744,7 @@ function liveVerdict0(o){const pa=peerAbs(),ma=myAbs();const d=ma-pa;if(T.mode==
   const me=ma<=pa;return me?'You won by '+fmtDelta(-d).replace('−','')+'. '+r0(o.wpm)+' against '+r0(PEER.fin.wpm)+' wpm.':PEER.name+' won by '+fmtDelta(-d).replace('−','')+'. '+r0(PEER.fin.wpm)+' against your '+r0(o.wpm)+' wpm.';}
 function teamWon(){const pacerMs=T.total/5/T.pacerT*60000;return myAbs()<=pacerMs&&T.myFin.acc>=90&&peerAbs()<=pacerMs&&PEER.fin.acc>=90;}
 function react(i){const r=REACTS[i];if(!r||!LINK||!LINK.open)return;LINK.send({t:'ev',k:'react',text:r});showReact(myName(),r,true);}
-function showReact(who,text,mine){if(TURF.active()){TURF.note(who+': '+text,'react');if(!mine)RACE.sfx.callout();return;}const host=!$('#results').hidden?$('#results'):$('#track');RACE.callout(host,'react',who+': '+text);if(!mine)RACE.sfx.callout();}
+function showReact(who,text,mine){const ag=actPG();if(ag){ag.note(who+': '+text,'react');if(!mine)RACE.sfx.callout();return;}const host=!$('#results').hidden?$('#results'):$('#track');RACE.callout(host,'react',who+': '+text);if(!mine)RACE.sfx.callout();}
 function settleLive(){if(!T||!T.myFin||!PEER.fin||T.settled)return;T.settled=true;if(T.mode==='duel'){fairMeasured('mw',T.myFin.wpm,PEER.fin.wpm);FAIR.races++;}const me=T.mode==='team'?teamWon():myAbs()<=peerAbs();if(me)db.live.w++;else db.live.l++;if(me)MATCH.me++;else MATCH.peer++;const matchOver=MATCH.me>=3||MATCH.peer>=3;const last=db.tests[db.tests.length-1];if(last&&last.live){last.win=me?1:0;last.opp=PEER.fin.wpm;last.mode=T.mode;}
   if(T.o)showResults(T.o,true);
   if(PEER.fin.g){storeGhost(T.h,'friend',{g:PEER.fin.g,wpm:PEER.fin.wpm,name:PEER.name,t:Date.now()});}save();
@@ -752,7 +754,7 @@ function settleLive(){if(!T||!T.myFin||!PEER.fin||T.settled)return;T.settled=tru
   if(matchOver){if(MATCH.me>MATCH.peer){RACE.sfx.matchwin();RACE.flash($('#results'),'rwin');RACE.confetti($('#conf'),[mainColor(),'#ffffff','#7aa2f7'],160);setTimeout(()=>RACE.confetti($('#conf'),[mainColor(),'#ffffff','#7aa2f7'],120),600);}else RACE.sfx.lose();MATCH={me:0,peer:0};}
   else if(me){RACE.sfx.win();RACE.flash($('#results'),'rwin');RACE.confetti($('#conf'),[mainColor(),'#ffffff','#7aa2f7']);}else RACE.sfx.lose();}
 function shareGhost(){const g=db.ghosts[T.h]&&db.ghosts[T.h].last;if(!g)return;const url=RACE.link(location.href,{h:T.h,wpm:g.wpm,name:myName(),g:g.g});const done=()=>toast('Ghost link copied. Whoever opens it races your run on this quote.');if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(done,()=>prompt('Copy this link',url));else prompt('Copy this link',url);}
-function goHome(){TURF.stop();T=null;$('#race').hidden=true;$('#results').hidden=true;$('#home').hidden=false;renderHome();}
+function goHome(){stopPG();T=null;$('#race').hidden=true;$('#results').hidden=true;$('#home').hidden=false;renderHome();}
 function startSolo(){if(LINK)leaveLive();const same=T&&!T.live&&db.sameTx>0;if(!T)db.sameTx=0;setup(same?T.q:pickQuote());}
 $('#m-solo').onclick=()=>{T=null;db.sameTx=0;startSolo();};
 $('#m-daily').onclick=()=>{if(LINK)leaveLive();T=null;db.sameTx=0;setup(QUOTES[RACE.dailyIndex(QUOTES.length)],{daily:true});};
@@ -763,11 +765,11 @@ function wireLink(){SYNC=RACE.Sync();
   return {
     onReady(code){lobby('<h2>Your race code</h2><div class="code" id="code">'+code+'</div><p class="sub">Send the code and this page’s link. <button class="link" id="b-copy">copy an invite link</button></p><p class="sub"><span class="dot"></span>waiting for a friend to join…</p><p><button id="b-cancel">cancel</button></p>');
       $('#b-cancel').onclick=()=>{leaveLive();};$('#b-copy').onclick=()=>{const url=location.href.split('#')[0]+'#join='+code;const done=()=>toast('Invite link copied.');if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(done,()=>prompt('Copy this link',url));else prompt('Copy this link',url);};},
-    onOpen(){MATCH={me:0,peer:0};LINK.send({t:'hi',name:myName(),target:db.target,games:['race','turf'],skill:RACE.skillOf(db.tests)});if(!IS_HOST)SYNC.ping(LINK);
-      lobby('<h2><span class="dot on"></span>Connected'+(PEER.name!=='friend'?' to '+esc(PEER.name):'')+'</h2><p class="sub" id="lobby-sub">'+(IS_HOST?lobbyHostText():'The host picks the game (race or turf) and starts it. Keep your hands on the keys.')+'</p>'+(IS_HOST?'<p class="row"><button class="cta" id="b-start">'+startLabel()+'</button><button id="b-game">game: '+gameName()+'</button><button id="b-mode"'+(GAME==='turf'?' hidden':'')+'>mode: '+MODE+'</button><button id="b-hcap">fair start: on</button><button id="b-cancel">leave</button></p>':'<p><button id="b-cancel">leave</button></p>'));
-      $('#b-cancel').onclick=()=>{leaveLive();goHome();};if(IS_HOST){$('#b-start').onclick=()=>hostStart();$('#b-game').onclick=e=>{if(GAME==='race'&&!canTurf()){toast(PEER.name+' joined from the typing coach, which only has the race. Word Turf needs the race page on both ends.',4200);return;}GAME=GAME==='race'?'turf':'race';e.target.textContent='game: '+gameName();$('#b-start').textContent=startLabel();$('#b-mode').hidden=GAME==='turf';$('#lobby-sub').innerHTML=lobbyHostText();};$('#b-mode').onclick=e=>{MODE=MODE==='duel'?'team':'duel';e.target.textContent='mode: '+MODE;$('#lobby-sub').innerHTML=lobbyHostText();};$('#b-hcap').onclick=e=>{HCAP=!HCAP;e.target.textContent='fair start: '+(HCAP?'on':'off');$('#lobby-sub').innerHTML=lobbyHostText();};}RACE.sfx.finish();},
+    onOpen(){MATCH={me:0,peer:0};LINK.send({t:'hi',name:myName(),target:db.target,games:GAMEIDS(),skill:RACE.skillOf(db.tests)});if(!IS_HOST)SYNC.ping(LINK);
+      lobby('<h2><span class="dot on"></span>Connected'+(PEER.name!=='friend'?' to '+esc(PEER.name):'')+'</h2><p class="sub" id="lobby-sub">'+(IS_HOST?lobbyHostText():'The host picks the game (race or turf) and starts it. Keep your hands on the keys.')+'</p>'+(IS_HOST?'<p class="row"><button class="cta" id="b-start">'+startLabel()+'</button><button id="b-game">game: '+gameName()+'</button><button id="b-mode"'+(GAME!=='race'?' hidden':'')+'>mode: '+MODE+'</button><button id="b-hcap">fair start: on</button><button id="b-cancel">leave</button></p>':'<p><button id="b-cancel">leave</button></p>'));
+      $('#b-cancel').onclick=()=>{leaveLive();goHome();};if(IS_HOST){$('#b-start').onclick=()=>hostStart();$('#b-game').onclick=e=>{if(GAMEIDS().filter(canGame).length<2){toast(PEER.name+' joined from the typing coach, which only has the race. The other games need the race page on both ends.',4200);return;}GAME=cycleGame(GAME);e.target.textContent='game: '+gameName();$('#b-start').textContent=startLabel();$('#b-mode').hidden=GAME!=='race';$('#lobby-sub').innerHTML=lobbyHostText();};$('#b-mode').onclick=e=>{MODE=MODE==='duel'?'team':'duel';e.target.textContent='mode: '+MODE;$('#lobby-sub').innerHTML=lobbyHostText();};$('#b-hcap').onclick=e=>{HCAP=!HCAP;e.target.textContent='fair start: '+(HCAP?'on':'off');$('#lobby-sub').innerHTML=lobbyHostText();};}RACE.sfx.finish();},
     onData(d){switch(d.t){
-      case 'hi':{PEER.name=String(d.name||'friend').slice(0,18)||'friend';if(d.target)PEER.target=+d.target;if(Array.isArray(d.games))PEER.games=d.games;if(d.skill&&+d.skill.wpm>0)PEER.skill={wpm:+d.skill.wpm,n:+d.skill.n||0};const ls=$('#lobby-sub');if(ls&&IS_HOST)ls.innerHTML=lobbyHostText();const h2=$('#lobby h2');if(h2)h2.innerHTML='<span class="dot on"></span>Connected to '+esc(PEER.name);if(track&&T&&T.live)track.rename('peer',PEER.name);TURF.rename();break;}
+      case 'hi':{PEER.name=String(d.name||'friend').slice(0,18)||'friend';if(d.target)PEER.target=+d.target;if(Array.isArray(d.games))PEER.games=d.games;if(d.skill&&+d.skill.wpm>0)PEER.skill={wpm:+d.skill.wpm,n:+d.skill.n||0};const ls=$('#lobby-sub');if(ls&&IS_HOST)ls.innerHTML=lobbyHostText();const h2=$('#lobby h2');if(h2)h2.innerHTML='<span class="dot on"></span>Connected to '+esc(PEER.name);if(track&&T&&T.live)track.rename('peer',PEER.name);PGAMES().forEach(g=>g.rename());break;}
       case 'ping':LINK.send({t:'pong',a:d.a,b:performance.now()});break;
       case 'pong':SYNC.pong(d);break;
       case 'race':{const q=[String(d.text||''),String(d.src||'')];if(!q[0])break;PEER.fin=null;PEER.ready=false;const startAt=d.startAt-(IS_HOST?0:SYNC.offset);if(T&&T.live&&T.mode!==(d.mode||'duel'))MATCH={me:0,peer:0};setup(q,{live:true,startAt,mode:d.mode||'duel',delay:IS_HOST?(d.delayHost||0):(d.delayPeer||0),peerDelay:IS_HOST?(d.delayPeer||0):(d.delayHost||0),pacer:d.pacer||db.target});break;}
@@ -775,33 +777,34 @@ function wireLink(){SYNC=RACE.Sync();
       case 'ev':if(d.k==='react')showReact(PEER.name,String(d.text||'').slice(0,20),false);break;
       case 'fin':if(T&&T.live){PEER.fin=d;if(!T.fin.peer)T.fin.peer=rankNow();if(track)track.set('peer',{p:1,wpm:d.wpm,done:true,rank:T.fin.peer});if(peerEl){peerEl.classList.remove('peer');peerEl=null;}if(T.state!=='done')RACE.callout($('#track'),'bad',PEER.name+' finished');settleLive();}break;
       case 'rq':if(IS_HOST){toast(PEER.name+' started a new game.');hostStartOnce();}break;
-      case 'ready':PEER.ready=true;if(IS_HOST&&!(T&&T.live&&T.state!=='done')&&!TURF.playingLive()){hostStartOnce();break;}if(IS_HOST)maybeRematch();else{const b=TURF.active()?$('#t-next'):$('#b-next');if(b&&b.disabled)b.textContent=PEER.name+' is ready; waiting for the host…';}break;
-      case 'ng':{NEXTG=d.g==='turf'?'turf':'race';const l=$('#ng-lbl');if(l)l.textContent='next: '+gameTitle(NEXTG);break;}
+      case 'ready':PEER.ready=true;if(IS_HOST&&!(T&&T.live&&T.state!=='done')&&!PGAMES().some(g=>g.playingLive())){hostStartOnce();break;}if(IS_HOST)maybeRematch();else{const ag=actPG();const b=$(ag?'#'+ag.nextId:'#b-next');if(b&&b.disabled)b.textContent=PEER.name+' is ready; waiting for the host…';}break;
+      case 'ng':{NEXTG=GAMEIDS().includes(d.g)?d.g:'race';const l=$('#ng-lbl');if(l)l.textContent='next: '+gameTitle(NEXTG);break;}
       case 'turf':case 'tc':case 'ts':case 'tt':case 'tend':case 'tst':TURF.onData(d);break;
-      case 'bye':{const who=PEER.name;toast(who+' left the race.');leaveLive();if(TURF.active()){TURF.peerLeft(who);break;}if(T&&T.live&&T.state!=='done'){goHome();}else if(T&&T.live){const b=$('#b-next');if(b){b.disabled=true;b.textContent=who+' left';}}break;}}},
-    onClose(){toast('Connection closed.');if((T&&T.live&&T.state!=='done')||TURF.playingLive())goHome();leaveLive();},
+      default:{const g=XG.find(g=>g.msgs.includes(d.t));if(g)g.onData(d);break;}
+      case 'bye':{const who=PEER.name;toast(who+' left the race.');leaveLive();{const ag=actPG();if(ag){ag.peerLeft(who);break;}}if(T&&T.live&&T.state!=='done'){goHome();}else if(T&&T.live){const b=$('#b-next');if(b){b.disabled=true;b.textContent=who+' left';}}break;}}},
+    onClose(){toast('Connection closed.');if((T&&T.live&&T.state!=='done')||PGAMES().some(g=>g.playingLive()))goHome();leaveLive();},
     onStatus(t){const s=$('#lobby .sub');if(s&&!(LINK&&LINK.open))s.textContent=t;},
     onError(e){toast(RACE.errName(e),4000);if(!(LINK&&LINK.open)){leaveLive();goHome();}}};}
-function lobbyHostText(){const pt=PEER.target;const mine=db.target;if(GAME==='turf')return TURF.hostText(pt,mine);let s=MODE==='team'?'<b>Team</b>: you both race the pacer at '+(pt?Math.round((mine+pt)/2):mine)+' wpm (the average of your targets). The team wins only if you both beat it.':'<b>Duel</b>: first across the line wins, best of three races per match.';
+function lobbyHostText(){const pt=PEER.target;const mine=db.target;if(xgOf(GAME))return xgOf(GAME).hostText();if(GAME==='turf')return TURF.hostText(pt,mine);let s=MODE==='team'?'<b>Team</b>: you both race the pacer at '+(pt?Math.round((mine+pt)/2):mine)+' wpm (the average of your targets). The team wins only if you both beat it.':'<b>Duel</b>: first across the line wins, best of three races per match.';
   if(MODE==='duel'&&HCAP)s+=' '+fairText();else if(MODE==='duel')s+=' Fair start is off: level start.';
   return s+' Press Start when you are both ready.';}
-function hostStart(){if(!LINK||!LINK.open)return;if(GAME==='turf'&&!canTurf()){GAME='race';toast('Word Turf needs the race page on both ends; starting a race.',3500);}if(GAME==='turf'){TURF.hostStart();return;}const q=pickQuote();const startAt=performance.now()+3800;const total=q[0].length;const pt=PEER.target||db.target,mine=db.target;let delayHost=0,delayPeer=0;
+function hostStart(){if(!LINK||!LINK.open)return;if(GAME!=='race'&&!canGame(GAME)){toast(gameTitle(GAME)+' needs the race page on both ends; starting a race.',3500);GAME='race';}if(xgOf(GAME)){xgOf(GAME).hostStart();return;}if(GAME==='turf'){TURF.hostStart();return;}const q=pickQuote();const startAt=performance.now()+3800;const total=q[0].length;const pt=PEER.target||db.target,mine=db.target;let delayHost=0,delayPeer=0;
   if(MODE==='duel'&&HCAP){const h=fairNow(total).h;if(h>0)delayHost=h;else delayPeer=-h;}
   const pacer=MODE==='team'?Math.round((mine+pt)/2):mine;LINK.send({t:'race',text:q[0],src:q[1],startAt,mode:MODE,delayHost,delayPeer,pacer});if(T&&T.live&&T.mode!==MODE)MATCH={me:0,peer:0};PEER.fin=null;PEER.ready=false;T=null;setup(q,{live:true,startAt,mode:MODE,delay:delayHost,peerDelay:delayPeer,pacer});}
 /* restart or rematch: one click from either player starts a new game for both */
-function restartLive(){if(!LINK||!LINK.open)return;if(IS_HOST){hostStartOnce();return;}LINK.send({t:'rq'});/* a typing-coach host only knows 'ready' */if(!(T&&T.live&&T.state!=='done')&&!TURF.playingLive())LINK.send({t:'ready'});}
+function restartLive(){if(!LINK||!LINK.open)return;if(IS_HOST){hostStartOnce();return;}LINK.send({t:'rq'});/* a typing-coach host only knows 'ready' */if(!(T&&T.live&&T.state!=='done')&&!PGAMES().some(g=>g.playingLive()))LINK.send({t:'ready'});}
 /* both clicking at once must not start two games */
 function hostStartOnce(){if(Date.now()-(hostStartOnce.at||0)<1000)return;hostStartOnce.at=Date.now();hostStart();}
-function maybeRematch(){if(!IS_HOST||!PEER.ready)return;if(TURF.active()){if(TURF.meReady())hostStart();return;}if(T&&T.hostReady)hostStart();}
+function maybeRematch(){if(!IS_HOST||!PEER.ready)return;{const ag=actPG();if(ag){if(ag.meReady())hostStart();return;}}if(T&&T.hostReady)hostStart();}
 async function host(){leaveLive();IS_HOST=true;lobby('<p class="sub">Connecting to the matchmaking server…</p>');LINK=RACE.Link(wireLink());try{await LINK.host(RACE.code());}catch(e){toast(RACE.errName(e.message),4000);leaveLive();}}
 async function join(code){code=RACE.cleanCode(code);if(code.length<4){toast('A code has four letters.');return;}leaveLive();IS_HOST=false;lobby('<p class="sub">Joining '+code+'…</p>');LINK=RACE.Link(wireLink());try{await LINK.join(code);}catch(e){toast(RACE.errName(e.message),4000);leaveLive();}}
 $('#m-host').onclick=()=>{RACE.sfx.unlock();host();};
 $('#m-join').onclick=()=>{lobby('<h2>Join a race</h2><div class="join"><input id="code-in" placeholder="CODE" maxlength="6" autocomplete="off"><button class="cta" id="b-join" style="font-size:1rem;padding:.55rem 1rem">Join</button><button id="b-cancel">cancel</button></div>');const i=$('#code-in');i.focus();$('#b-join').onclick=()=>join(i.value);i.onkeydown=e=>{if(e.key==='Enter')join(i.value);};$('#b-cancel').onclick=()=>{$('#lobby').hidden=true;};};
 /* ---- links in the hash: a friend's ghost, or a race code ---- */
-function readHash(){if(/^#turf\b/.test(location.hash))setTab('turf');const g=RACE.parseHash(location.hash);if(g){const q=quoteByHash(g.h);if(q){FRIEND=g;$('#ghostnote').hidden=false;$('#ghostnote').innerHTML=esc(g.name||'A friend')+' sent a ghost at '+r0(g.wpm)+' wpm. <button class="link" id="b-ghost">race it now</button>';$('#b-ghost').onclick=()=>{db.sameTx=0;T=null;setup(q);};}else{toast('That ghost link is from a different quote list.');}}
+function readHash(){{const m=/^#([a-z]+)\b/.exec(location.hash);if(m&&m[1]!=='race'&&GAMEIDS().includes(m[1]))setTab(m[1]);}const g=RACE.parseHash(location.hash);if(g){const q=quoteByHash(g.h);if(q){FRIEND=g;$('#ghostnote').hidden=false;$('#ghostnote').innerHTML=esc(g.name||'A friend')+' sent a ghost at '+r0(g.wpm)+' wpm. <button class="link" id="b-ghost">race it now</button>';$('#b-ghost').onclick=()=>{db.sameTx=0;T=null;setup(q);};}else{toast('That ghost link is from a different quote list.');}}
   const j=RACE.parseJoin(location.hash);if(j){join(j);}}
 window.addEventListener('beforeunload',()=>{if(LINK)LINK.send({t:'bye'});});
-window.PR={fairNow,fairTurf,fairMeasured,get FAIR(){return FAIR;},get TURF(){return TURF;},get GAME(){return GAME;},setTab,get db(){return db;},get T(){return T;},setup,finish,startSolo,host,join,goHome,QUOTES,get LINK(){return LINK;},get PEER(){return PEER;},hostStart};
+window.PR={get XG(){return XG;},fairNow,fairTurf,fairMeasured,get FAIR(){return FAIR;},get TURF(){return TURF;},get GAME(){return GAME;},setTab,get db(){return db;},get T(){return T;},setup,finish,startSolo,host,join,goHome,QUOTES,get LINK(){return LINK;},get PEER(){return PEER;},hostStart};
 function demo(){const el=$('#demo');if(!el)return;const tk=RACE.Track(el);tk.setPlayers([{id:'a',kind:'me',name:myName()},{id:'f',kind:'friend',name:'friend'},{id:'g',kind:'ghost',name:'your ghost'},{id:'p',kind:'pacer',name:'pacer'}]);el.classList.remove('counting');el.classList.add('racing');const t0=performance.now();
   (function f(){if(!$('#home').hidden){const t=((performance.now()-t0)%8000)/6500;const k=Math.min(1,t);const e=x=>Math.min(1,Math.max(0,x));const base=db.target||40;
     const pa=e(k*(0.9+0.16*k)+0.012*Math.sin(t*17)),pf=e(k*(1.02-0.05*k)+0.01*Math.sin(t*11+1)),pg=e(k*0.985+0.008*Math.sin(t*7)),pp=e(k*0.97);
@@ -1037,13 +1040,25 @@ return {key,start,stop,solo,hostStart,hostText,onData,peerLeft,demo,active,note,
   get S(){return S;},get TM(){return TM;}};
 })();
 
+TURF.id='turf';TURF.title='Word Turf';TURF.nextId='t-next';
+/* ---- extra games: each lives in src/games/<id>.js and registers itself with XG.push(module); see src/games/README.md ---- */
+const XG=[];
+
+const xgOf=g=>XG.find(x=>x.id===g)||null;
+const PGAMES=()=>[TURF,...XG];
+const actPG=()=>PGAMES().find(g=>g.active())||null;
+function stopPG(){TURF.stop();XG.forEach(g=>g.stop());}
+const GAMEIDS=()=>['race','turf',...XG.map(g=>g.id)];
+/* tabs, hero panels and screens for the extra games */
+XG.forEach(g=>{const b=document.createElement('button');b.id='g-'+g.id;b.innerHTML=esc(g.title)+'<sup>new</sup>';$('.gtabs').appendChild(b);const h=document.createElement('div');h.className='hero';h.id='hero-'+g.id;h.hidden=true;$('#lobby').before(h);const sc=document.createElement('section');sc.id=g.id;sc.hidden=true;$('#turf').after(sc);});
 /* ---- home tabs: Pace Race and Word Turf ---- */
-function gameName(){return GAME==='turf'?'word turf':'race';}
-function startLabel(){return GAME==='turf'?'Start Word Turf':'Start the race';}
-function setTab(g){GAME=g==='turf'?'turf':'race';db.game=GAME;save();$('#hero-race').hidden=GAME!=='race';$('#hero-turf').hidden=GAME!=='turf';$('#g-race').classList.toggle('on',GAME==='race');$('#g-turf').classList.toggle('on',GAME==='turf');if(!LINK)$('#lobby').hidden=true;if(GAME==='turf'){renderTurfHome();TURF.demo();}}
+function gameName(){return GAME==='race'?'race':gameTitle(GAME).toLowerCase();}
+function startLabel(){return GAME==='race'?'Start the race':'Start '+gameTitle(GAME);}
+function setTab(g){GAME=GAMEIDS().includes(g)?g:'race';db.game=GAME;save();for(const id of GAMEIDS()){const h=$('#hero-'+id);if(h)h.hidden=GAME!==id;const b=$('#g-'+id);if(b)b.classList.toggle('on',GAME===id);}if(!LINK)$('#lobby').hidden=true;if(GAME==='turf'){renderTurfHome();TURF.demo();}const xg=xgOf(GAME);if(xg){xg.home($('#hero-'+xg.id));xg.demo();}}
 function renderTurfHome(){const d=TURF.tdb();$('#bot').textContent=d.bot;const tr=RACE.tier(d.bot);$('#btier').textContent=tr.label;$('#btier').style.setProperty('--tc',tr.color);const g=d.games.length;
   $('#tstats').innerHTML=g?'<div><div class="lbl">games</div><div class="v">'+g+'</div></div><div><div class="lbl">vs bot</div><div class="v">'+d.w+' – '+d.l+'</div></div>'+(d.lw+d.ll?'<div><div class="lbl">live record</div><div class="v">'+d.lw+' – '+d.ll+'</div></div>':'')+'<div><div class="lbl">best score</div><div class="v">'+d.best+'</div></div>':'<span class="sub">The bot starts at your race pacer speed. Beat it and it gets 2 wpm faster; lose and it eases off by 1.</span>';}
 $('#g-race').onclick=()=>setTab('race');$('#g-turf').onclick=()=>setTab('turf');
+XG.forEach(g=>{$('#g-'+g.id).onclick=()=>setTab(g.id);});
 $('#b-bup').onclick=()=>{TURF.tdb().bot++;save();renderTurfHome();};$('#b-bdn').onclick=()=>{const d=TURF.tdb();d.bot=Math.max(15,d.bot-1);save();renderTurfHome();};
 $('#t-solo').onclick=()=>TURF.solo();$('#t-host').onclick=()=>{RACE.sfx.unlock();host();};$('#t-join').onclick=()=>$('#m-join').onclick();
 $('#t-how').onclick=()=>{lobby('<h2>How Word Turf works</h2><ol class="trules"><li>Type any word on the board. The moment it is right, the square is yours. No Enter, no space.</li><li>Points are banked the moment you take a square and stay yours even if it is stolen back: 1 for a free square, 2 for a steal, 2 more on gold.</li><li>A taken square shows a new, longer word. Type it to steal the square. Your rival can steal it back the same way.</li><li>Own all five squares of a row, column or diagonal and you bank 3 points (each line once per player); the line is struck through and sealed for 15 seconds, then its squares are open again. When someone holds 4 of a line, the fifth square pulses: LINE in your colour, BLOCK in theirs.</li><li>Gold squares are worth 2 more each time they are taken: the centre starts gold and two more turn gold during the game. Five words in a row with no typo give you a shield: your next square is sealed for 12 seconds.</li><li>Catch-up (live games): the slower typist’s squares score more, measured from how fast you are both typing in this game, up to double. The multiplier shows next to the score.</li><li>Final rush: in the last 12 seconds every taken square switches to a short word, so anything can be stolen fast.</li><li>Nothing to erase: what you type lights up on the squares, and a wrong letter just drops the word (the board flashes red). Keep typing.</li><li>You can see what your rival is typing: their letters are underlined on the board in their colour. Get there first.</li><li>75 seconds. Most points wins. Against a friend, first to 2 games takes the match.</li></ol><p><button id="b-cancel">close</button></p>');$('#b-cancel').onclick=()=>{$('#lobby').hidden=true;};};
@@ -1063,14 +1078,14 @@ function fairTurf(){return fairSpeeds('tw');}
 function fairTurfText(){if(!HCAP)return ' Catch-up is off.';const f=fairTurf();return ' Catch-up: the slower typist’s squares score more, by how much slower you are both typing during the game (up to double), so nobody waits. It starts from '+RACE.fairWho('your',f.me)+'; '+RACE.fairWho(esc(PEER.name)+'’s',f.pe)+', and within a few words it is going on what you actually type.';}
 /* ---- on-screen controls and options ---- */
 function twoStep(btn,label,fn){if(btn.dataset.armed){fn();return;}btn.dataset.armed='1';const old=btn.innerHTML;btn.textContent=label;btn.classList.add('warn');setTimeout(()=>{if(btn.isConnected){delete btn.dataset.armed;btn.innerHTML=old;btn.classList.remove('warn');}},3000);}
-function quitGame(btn){const live=(T&&T.live)||(TURF.S&&TURF.S.live);const go=()=>{if(live)leaveLive();TURF.stop();goHome();};if(live)twoStep(btn,'leave the match? click again',go);else go();}
+function quitGame(btn){const live=(T&&T.live)||PGAMES().some(g=>g.S&&g.S.live);const go=()=>{if(live)leaveLive();stopPG();goHome();};if(live)twoStep(btn,'leave the match? click again',go);else go();}
 $('#c-restart').onclick=e=>{if(T&&T.live){twoStep(e.currentTarget,'new race for both? click again',restartLive);return;}if(T)setup(T.q);};
 $('#c-new').onclick=()=>{if(T&&!T.live){db.sameTx=0;T=null;setup(pickQuote());}};
 $('#c-quit').onclick=e=>quitGame(e.currentTarget);
 function syncCtl(){const live=!!(T&&T.live);$('#c-restart').hidden=live&&!(LINK&&LINK.open);$('#c-new').hidden=live;$('#c-quit').textContent=live?'leave match':'quit';}
 setInterval(()=>{if(!$('#race').hidden)syncCtl();},500);
 function seg(id,cur,opts){return '<span class="seg" id="'+id+'">'+opts.map(([v,l])=>'<button data-v="'+v+'" class="'+(String(cur)===String(v)?'on':'')+'">'+l+'</button>').join('')+'</span>';}
-function openOptions(){if((T&&T.live&&T.state!=='done')||TURF.playingLive()){toast('Finish or leave the live game first.');return;}if(T||TURF.S){TURF.stop();goHome();}
+function openOptions(){if((T&&T.live&&T.state!=='done')||PGAMES().some(g=>g.playingLive())){toast('Finish or leave the live game first.');return;}if(T||PGAMES().some(g=>g.S)){stopPG();goHome();}
   const d=TURF.tdb();const h='<h2>Options</h2><div class="opts">'+
    '<div class="orow"><span>race quote length</span>'+seg('o-qlen',db.qlen||'any',[['short','short'],['medium','medium'],['long','long'],['any','any']])+'</div>'+
    '<div class="orow"><span>Word Turf game length</span>'+seg('o-tdur',db.turfDur||75000,[[45000,'45 s'],[75000,'75 s'],[120000,'2 min']])+'</div>'+
@@ -1078,8 +1093,9 @@ function openOptions(){if((T&&T.live&&T.state!=='done')||TURF.playingLive()){toa
    '<div class="orow"><span>sound</span>'+seg('o-snd',RACE.sfx.on?1:0,[[1,'on'],[0,'off']])+'</div>'+
    '<div class="orow"><span>reset</span><button class="danger" id="o-rrace">reset race progress</button><button class="danger" id="o-rturf">reset Word Turf record</button></div>'+
    '<p class="sub" style="margin:0;font-size:.85rem">Race reset: pacer back to 40 wpm, history, ghosts and live record cleared. Word Turf reset: bot back to your pacer speed, record cleared.</p>'+
+   XG.map(g=>g.opts?g.opts():'').join('')+
    '<div><button id="b-cancel">done</button></div></div>';
-  lobby(h);
+  lobby(h);XG.forEach(g=>{if(g.wireOpts)g.wireOpts(openOptions);});
   const wire=(id,fn)=>$('#'+id).querySelectorAll('button').forEach(b=>b.onclick=()=>{$('#'+id).querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));fn(b.dataset.v);save();renderHome();});
   wire('o-qlen',v=>{db.qlen=v;});wire('o-tdur',v=>{db.turfDur=+v;TURF.cfg.dur=+v;});wire('o-hcap',v=>{HCAP=v==='1';db.hcap=HCAP;});wire('o-snd',v=>{RACE.sfx.set(v==='1');});
   $('#o-rrace').onclick=e=>twoStep(e.currentTarget,'click again to reset the race',()=>{Object.assign(db,{tests:[],ghosts:{},target:40,sameTx:0,streak:0,best:0,live:{w:0,l:0}});save();renderHome();toast('Race progress reset.');openOptions();});
@@ -1090,14 +1106,17 @@ document.addEventListener('mousedown',e=>{if(e.target.closest('.ctl button'))e.p
 if(db.turfDur)TURF.cfg.dur=+db.turfDur;if(db.hcap!=null)HCAP=!!db.hcap;
 /* ---- between games: the host can switch what the rematch plays ---- */
 let NEXTG=null;
-const gameTitle=g=>g==='turf'?'Word Turf':'Pace Race';
-const canTurf=()=>!!(PEER.games&&PEER.games.includes('turf'));
+const gameTitle=g=>g==='turf'?'Word Turf':xgOf(g)?xgOf(g).title:'Pace Race';
+const canGame=g=>g==='race'||!!(PEER.games&&PEER.games.includes(g));
+const canTurf=()=>canGame('turf');
+/* the next game in the list this pair can both play */
+function cycleGame(g){const L=GAMEIDS().filter(canGame);return L[(L.indexOf(g)+1)%L.length]||'race';}
 function nextGameHtml(){if(!LINK||!LINK.open)return '';return IS_HOST?'<button id="b-ng" title="what the rematch plays">next: '+gameTitle(GAME)+'</button>':'<span class="sub" id="ng-lbl" style="font-size:.85rem">'+(NEXTG?'next: '+gameTitle(NEXTG):'')+'</span>';}
-function wireNextGame(cur){const b=$('#b-ng');if(!b)return;const nx=$(cur==='turf'?'#t-next':'#b-next');const label=()=>{b.textContent='next: '+gameTitle(GAME);if(nx&&!nx.disabled)nx.textContent=GAME===cur?'Rematch':'Play '+gameTitle(GAME);};label();
-  b.onclick=()=>{if(GAME==='race'&&!canTurf()){toast(PEER.name+' is in the typing coach, which only has the race.',3500);return;}GAME=GAME==='race'?'turf':'race';db.game=GAME;save();label();if(LINK&&LINK.open)LINK.send({t:'ng',g:GAME});};}
+function wireNextGame(cur){const b=$('#b-ng');if(!b)return;const nx=$(cur==='turf'?'#t-next':xgOf(cur)?'#'+xgOf(cur).nextId:'#b-next');const label=()=>{b.textContent='next: '+gameTitle(GAME);if(nx&&!nx.disabled)nx.textContent=GAME===cur?'Rematch':'Play '+gameTitle(GAME);};label();
+  b.onclick=()=>{if(GAMEIDS().filter(canGame).length<2){toast(PEER.name+' is in the typing coach, which only has the race.',3500);return;}GAME=cycleGame(GAME);db.game=GAME;save();label();if(LINK&&LINK.open)LINK.send({t:'ng',g:GAME});};}
 /* ---- phones: tap to bring up the keyboard ---- */
 const TOUCH=RACE.touchInput();
-function typingView(){return !$('#race').hidden||(TURF.active()&&TURF.S&&TURF.S.state!=='done');}
+function typingView(){return !$('#race').hidden||(TURF.active()&&TURF.S&&TURF.S.state!=='done')||XG.some(g=>g.active()&&g.S&&g.S.state!=='done');}
 if(TOUCH){const kb=document.createElement('button');kb.id='kbtn';kb.textContent='tap to type';kb.hidden=true;document.body.appendChild(kb);
   const focusT=()=>{try{TOUCH.focus({preventScroll:true});}catch(e){TOUCH.focus();}};
   kb.addEventListener('pointerdown',e=>{e.preventDefault();focusT();});
