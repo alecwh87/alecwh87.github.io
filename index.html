@@ -360,6 +360,20 @@ html.touch .khint,html.touch .ctl .kbd{display:none}
 #home{display:flex;flex-direction:column}#home>.gcards{order:1;padding-top:.5rem}#home>.hero,#home>#lobby{order:2}#home>#quests{order:3;margin-top:1rem;width:100%}#home>.hero{padding-top:.8rem;gap:.8rem}#home>.hero>h1{display:none}#home>.hero>p{order:9;font-size:.9rem}#home>.hero>.stats{order:10}.gcard .gpitch{min-height:0}
 .qmore{display:none}.q{padding:.45rem .7rem}.qlist{grid-template-columns:1fr;gap:.4rem}.gcards{grid-auto-columns:minmax(142px,44%)}#xpt{top:auto;bottom:.6rem;right:50%;transform:translateX(50%);align-items:center}#xpt .xp{font-size:.75rem;padding:.25rem .7rem}#results:not([hidden]){display:flex;flex-direction:column}#rbtns{order:-1;margin:0 0 1rem!important}.lvl .lvx{min-width:3.6rem}.phead{gap:.8rem}.pbig{width:3.8rem;height:3.8rem;font-size:1.5rem}#modal .mcard{padding:1.1rem 1rem}}
 @media (prefers-reduced-motion:reduce){.wrap>section,#home>.hero,.pv *,.pv *::before,.pv *::after,#lvup *,.q.fresh,.q.fresh *,#xpt .xp,#modal,#modal .mcard,.lvl.bump .lvn{animation:none!important;transition:none!important}#lvup .ring{display:none}}
+/* ---- room: two players stay connected between games ---- */
+#roombar{display:flex;align-items:center;gap:.5rem .7rem;flex-wrap:wrap;font-family:var(--ui);font-size:.85rem;background:var(--card);border:1px solid var(--btnb);border-radius:999px;padding:.3rem .45rem .3rem .9rem;margin:0 auto .8rem;max-width:900px;animation:scrin .3s cubic-bezier(.2,.8,.2,1) backwards}
+#roombar b{color:var(--main)}
+#roombar .rbbtns{margin-left:auto;display:inline-flex;gap:.35rem}
+#roombar button.small{font-size:.78rem;padding:.25rem .65rem;border-radius:999px}
+#roombar button.cta.small{font-weight:700}
+body.typing #roombar{display:none}
+.rgames{display:flex;flex-wrap:wrap;gap:.4rem;margin:.35rem 0 .7rem}
+.rgames .rg{font-family:var(--ui);font-size:.9rem;padding:.4rem .9rem;border-radius:999px}
+.rgames .rg.on{background:var(--main);color:var(--bg);border-color:transparent;font-weight:700}
+#r-pick{min-height:1.4rem;margin:.1rem 0 .7rem;font-family:var(--ui);display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
+#r-pick b{color:var(--main)}
+#r-pick:empty{display:none}
+@media (max-width:640px){#roombar{font-size:.78rem;padding-left:.7rem}#roombar .rbcode{display:none}}
 /* ---- tutorials ---- */
 #tut{position:fixed;inset:0;z-index:70;pointer-events:none}
 #tut .tspot{position:fixed;border-radius:12px;box-shadow:0 0 0 200vmax color-mix(in srgb,var(--bg) 74%,transparent),0 0 0 2px var(--main),0 0 24px 2px color-mix(in srgb,var(--main) 55%,transparent);transition:left .25s,top .25s,width .25s,height .25s;animation:tpulse 1.6s ease-in-out infinite}
@@ -424,6 +438,7 @@ body.tut-on #kbtn{z-index:71}
     <a id="a-coach" class="sub" href="typing-coach.html" hidden style="font-size:.85rem">coach</a>
   </div>
 </header>
+<div id="roombar" class="fade" role="status" hidden></div>
 
 <section id="home">
   <div class="gcards" id="gcards" role="tablist" aria-label="games"></div>
@@ -826,7 +841,7 @@ const myName=()=>(db.name||'').trim()||'you';
 const clipName=n=>{n=String(n||'').trim();return n.length>18?n.slice(0,17).trimEnd()+'…':n;};
 /* ---- state ---- */
 let T=null;   // current race
-let LINK=null,SYNC=null,PEER={name:'friend',ready:false,fin:null};let IS_HOST=false;let MATCH={me:0,peer:0};let MODE='duel',HCAP=true,GAME='race';const REACTS=['gg','again!','so close','too fast'];
+let LINK=null,SYNC=null,PEER={name:'friend',ready:false,fin:null};let IS_HOST=false;let PICK=null;/* room: a game one player picked, waiting for the other's Ready */let MATCH={me:0,peer:0};let MODE='duel',HCAP=true,GAME='race';const REACTS=['gg','again!','so close','too fast'];
 let track=null;
 /* ---- home ---- */
 function applyTheme(){document.documentElement.setAttribute('data-theme',db.theme||'black');}
@@ -897,9 +912,10 @@ function onEvent(e){const tr=$('#track');switch(e){case 'lead':RACE.sfx.up();RAC
 /* ---- typing ---- */
 window.addEventListener('keydown',e=>{const tag=(document.activeElement||{}).tagName;if(tag==='INPUT'&&!RACE.touchFocused())return;/* a key typed into a text box (even one that was just removed, like the join code box) is never a game key */if(e.defaultPrevented||(e.target&&e.target.tagName==='INPUT'&&e.target.id!=='rtouch'))return;if($('#modal'))return;if(RECON&&RECON.mid){if(e.key.length===1||e.key==='Enter'||e.key==='Backspace'||e.key==='Tab')e.preventDefault();return;}
   if(e.key==='Tab'&&!e.altKey&&!e.ctrlKey&&!e.metaKey&&tabKey(e))return;if($('#race').hidden&&$('#results').hidden){const vg=visGame();if(vg){vg.key(e);return;}}
-  if(!T){/* Enter with the lobby or options up does nothing, not even re-click the button that opened them */if(e.key==='Enter'&&!$('#lobby').hidden&&!(e.target&&e.target.closest&&e.target.closest('#lobby'))){e.preventDefault();return;}
+  if(!T){/* in a room, Enter accepts the game the friend picked */if(e.key==='Enter'&&inRoom()&&PICK&&PICK.by==='peer'&&!PICK.ok&&!$('#home').hidden&&!inLiveGame()){e.preventDefault();pickReady();return;}
+  /* Enter with the lobby or options up does nothing, not even re-click the button that opened them */if(e.key==='Enter'&&!$('#lobby').hidden&&!(e.target&&e.target.closest&&e.target.closest('#lobby'))){e.preventDefault();return;}
   if(e.key==='Enter'&&!$('#home').hidden&&$('#lobby').hidden){e.preventDefault();if(LINK){if(LINK.open)return;leaveLive();}const xg=xgOf(GAME);if(xg)xg.solo();else if(GAME==='turf')TURF.solo();else startSolo();}return;}
-  if(e.key==='Escape'){e.preventDefault();if(T.live)return;if(T.state==='done')goHome();else setup(T.q);return;}
+  if(e.key==='Escape'){e.preventDefault();if(T.live){if(T.state==='done')goHome();/* back to the room, still connected */return;}if(T.state==='done')goHome();else setup(T.q);return;}
   if(e.key==='Enter'){e.preventDefault();if(T.state==='done'){const b=$('#b-next');if(b&&!b.disabled)b.click();}return;}
   if(e.key==='Tab'){e.preventDefault();return;}
   if(T.live&&T.state==='done'&&/^[1-4]$/.test(e.key)){e.preventDefault();react(+e.key-1);return;}
@@ -944,20 +960,20 @@ function finish(){if(!T||T.state==='done')return;T.ended=performance.now();T.sta
 function fmtDelta(d){const s=Math.abs(d)/1000;return (d<=0?'−':'+')+(s<10?s.toFixed(2):s.toFixed(1))+' s';}
 function peerAbs(){return PEER.fin?(PEER.fin.abs!=null?PEER.fin.abs:PEER.fin.ms):null;}
 function myAbs(){return T.myFin?T.myFin.abs:null;}
-function scorecard(){if(!T.live)return '';const f=PEER.fin;const row=(l,a,b)=>'<tr><td class="sub">'+l+'</td><td>'+a+'</td><td>'+(f?b:'…')+'</td></tr>';return '<table class="rscore"><tr><th></th><th style="color:'+RACE.COLORS.me+'">'+esc(myName())+'</th><th style="color:'+RACE.COLORS.peer+'">'+esc(PEER.name)+'</th></tr>'+row('wpm',r0(T.myFin.wpm),f&&r0(+f.wpm||0))+row('accuracy',r1(T.myFin.acc)+'%',f&&r1(+f.acc||0)+'%')+row('time',(T.myFin.abs/1000).toFixed(1)+' s'+(T.delay?' (incl. '+(T.delay/1000).toFixed(1)+' s hold)':''),f&&((+(f.abs!=null?f.abs:f.ms)||0)/1000).toFixed(1)+' s')+row('best combo','x'+T.bestCombo,f&&'x'+(+f.combo||0))+row('badges',esc(T.badges.join(', ')||'—'),f&&esc((Array.isArray(f.badges)?f.badges.map(String):[]).join(', ')||'—'))+'</table>';}
+function scorecard(){if(!T.live)return '';const f=PEER.fin;const row=(l,a,b)=>'<tr><td class="sub">'+l+'</td><td>'+a+'</td><td>'+(f?b:'…')+'</td></tr>';return '<table class="rscore"><tr><th></th><th style="color:'+RACE.COLORS.me+'">'+esc(myName())+'</th><th style="color:'+RACE.COLORS.peer+'">'+esc(PEER.name)+'</th></tr>'+row('wpm',r0(T.myFin.wpm),f&&r0(+f.wpm||0))+row('accuracy',r1(T.myFin.acc)+'%',f&&r1(+f.acc||0)+'%')+row('time',(T.myFin.abs/1000).toFixed(1)+' s'+(T.delay?' (incl. '+(T.delay/1000).toFixed(1)+' s hold)':''),f&&((+(f.abs!=null?f.abs:f.ms)||0)/1000).toFixed(1)+' s')+row('best combo','x'+T.bestCombo,f&&'x'+(+f.combo||0))+row('badges',esc(T.badges.join(', ')||'none'),f&&esc((Array.isArray(f.badges)?f.badges.map(String):[]).join(', ')||'none'))+'</table>';}
 function showResults(o,quiet){T.o=o;const R=$('#results');R.hidden=false;$('#race').hidden=true;const live=T.live;
   const nPlayers=2+(live?1:0)+T.ghosts.length;const rankTxt=RACE.ordinal(o.rank)+' <span class="sub" style="font-size:1rem;font-weight:400">of '+nPlayers+'</span>';
   let h='<div class="res"><div class="nums"><div class="rank '+(o.rank===1?'win':'lose')+'" id="rank">'+rankTxt+'</div><div><div class="lbl">wpm</div><div class="huge">'+r0(o.wpm)+'</div></div><div><div class="lbl">accuracy</div><div style="font-size:1.6rem;font-weight:700;font-family:var(--ui)" class="'+(o.floorOk?'':'err')+'">'+r1(o.acc)+'%</div></div>'+(T.bestCombo>=10?'<div class="sub">best combo x'+T.bestCombo+'</div>':'')+'</div>';
   h+='<div><div class="lbl" style="margin-bottom:.4rem">against</div><div class="vs" id="vs">'+(live?'<div><b style="color:var(--p-peer,#f7768e)">'+esc(PEER.name)+'</b><span class="d" id="peer-d">'+(PEER.fin?fmtDelta(myAbs()-peerAbs())+' ('+r0(+PEER.fin.wpm||0)+' wpm)':'still typing…')+'</span></div>':'')+o.deltas.map(([n,d,b])=>'<div><b>'+esc(n)+'</b><span class="d '+(b?'ok':'err')+'">'+fmtDelta(d)+'</span></div>').join('')+'</div>'+scorecard();
-  h+='<div class="sub" style="margin-top:.8rem">“'+esc(T.text)+'”'+(T.src?' — '+esc(T.src):'')+'</div></div></div>';
+  h+='<div class="sub" style="margin-top:.8rem">“'+esc(T.text)+'”'+(T.src?' · '+esc(T.src):'')+'</div></div></div>';
   h+='<div id="badges">'+T.badges.map(b=>'<span class="rbadge'+(b==='personal best'?' pb':'')+'">'+esc(b)+'</span>').join('')+'</div>';
   h+='<canvas class="rreplay" id="replay"></canvas><div class="sub" id="gap" style="margin-top:.3rem"></div>';
   if(o.note)h+='<div class="verdict">'+esc(o.note)+'</div>';
   if(live)h+='<div class="verdict" id="live-note">'+(PEER.fin?esc(liveVerdict(o)):'Waiting for '+esc(PEER.name)+' to finish…')+'</div><div class="row" style="margin-top:.6rem"><span class="sub" style="font-size:.85rem">react:</span>'+REACTS.map((r,i)=>'<button class="small" data-react="'+i+'">'+r+' <span class="kbd">'+(i+1)+'</span></button>').join('')+'</div>';
-  h+='<div class="row" id="rbtns" style="margin-top:1rem"><button class="cta" id="b-next" style="font-size:1rem;padding:.6rem 1.2rem">'+(live?'Rematch':(o.pass?'Next quote':'Same quote again'))+'</button>'+(live?'':'<button id="b-share">'+(T.daily?'Share today’s run':'Share my ghost')+'</button>')+(live?nextGameHtml()+'<button id="b-leave">Leave</button>':'<button id="b-home">Home</button>')+'<span class="sub khint"><span class="kbd">Tab</span> or <span class="kbd">Enter</span> '+(live?'rematch':'next · <span class="kbd">Esc</span> home')+'</span></div>';
+  h+='<div class="row" id="rbtns" style="margin-top:1rem"><button class="cta" id="b-next" style="font-size:1rem;padding:.6rem 1.2rem">'+(live?'Rematch':(o.pass?'Next quote':'Same quote again'))+'</button>'+(live?'':'<button id="b-share">'+(T.daily?'Share today’s run':'Share my ghost')+'</button>')+(live?nextGameHtml()+'<button id="b-leave" title="you stay connected">Back to room</button>':'<button id="b-home">Home</button>')+'<span class="sub khint"><span class="kbd">Tab</span> or <span class="kbd">Enter</span> '+(live?'rematch':'next · <span class="kbd">Esc</span> home')+'</span></div>';
   R.innerHTML=h;drawReplay();R.querySelectorAll('[data-react]').forEach(b=>b.onclick=()=>react(+b.dataset.react));
   if(!live){$('#b-next').onclick=()=>{if(o.pass)startSolo();else setup(T.q);};$('#b-home').onclick=goHome;$('#b-share').onclick=shareGhost;}
-  else{$('#b-next').onclick=()=>{$('#b-next').disabled=true;$('#b-next').textContent='Starting…';restartLive();};$('#b-leave').onclick=()=>{leaveLive();goHome();};wireNextGame('race');if(T.hostReady||T.sentReady){const b=$('#b-next');b.disabled=true;b.textContent='Waiting for '+PEER.name+'…';}else if(!PEER.fin&&LINK&&LINK.open){const b=$('#b-next');b.disabled=true;b.textContent='Rematch when '+PEER.name+' finishes';}}
+  else{$('#b-next').onclick=()=>{$('#b-next').disabled=true;$('#b-next').textContent='Starting…';restartLive();};$('#b-leave').onclick=()=>{goHome();};wireNextGame('race');if(T.hostReady||T.sentReady){const b=$('#b-next');b.disabled=true;b.textContent='Waiting for '+PEER.name+'…';}else if(!PEER.fin&&LINK&&LINK.open){const b=$('#b-next');b.disabled=true;b.textContent='Rematch when '+PEER.name+' finishes';}}
   if(quiet)return;
   if(T.badges.includes('photo finish'))RACE.sfx.photo();
   if(!live){if(o.pass){RACE.sfx.win();RACE.flash(R,'rwin');RACE.confetti($('#conf'),[mainColor(),'#ffffff','#7aa2f7']);}else RACE.sfx.lose();if(o.pb)setTimeout(()=>RACE.sfx.pb(),500);if(T.tierUp){const tu=T.tierUp;setTimeout(()=>{RACE.sfx.tierup();const R2=$('#results');if(R2&&!R2.hidden)RACE.callout(R2,'tier',tu.label);},900);}}}
@@ -997,22 +1013,31 @@ function raceForfeit(who){const now=performance.now();T.state='done';T.ended=now
   showResults({rec:{},ms,wpm,acc,pass:true,rank:1,deltas:[],note:who+' left the game, so this race is yours by forfeit. It counts as a live win.',pb:false,floorOk:true},true);RACE.sfx.win();}
 function raceForfeitDone(who){if(!T||T.settled)return;T.settled=true;db.live.w++;MATCH.me++;save();hubLive('race',true);const ln=$('#live-note');if(ln)ln.textContent=who+' left before finishing, so this race is yours by forfeit. It counts as a live win.';const pd=$('#peer-d');if(pd)pd.textContent='left';const rk=$('#rank');if(rk){rk.innerHTML='1st <span class="sub" style="font-size:1rem;font-weight:400">by forfeit</span>';rk.className='rank win';}RACE.sfx.win();}
 function shareGhost(){const g=db.ghosts[T.h]&&db.ghosts[T.h].last;if(!g)return;const url=RACE.link(location.href,{h:T.h,wpm:g.wpm,name:myName(),g:g.g});const done=()=>toast('Ghost link copied. Whoever opens it races your run on this quote.');if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(done,()=>prompt('Copy this link',url));else prompt('Copy this link',url);}
-function goHome(){stopPG();T=null;$('#race').hidden=true;$('#results').hidden=true;$('#home').hidden=false;renderHome();}
-function startSolo(){if(LINK)leaveLive();const same=T&&!T.live&&db.sameTx>0;if(!T)db.sameTx=0;setup(same?T.q:pickQuote());}
+/* home; while two players are connected, home is the room (the lobby card with the game picker), and the link stays up */
+function goHome(){stopPG();T=null;$('#race').hidden=true;$('#results').hidden=true;$('#home').hidden=false;renderHome();if(inRoom())roomUI();paintRoom();}
+const inRoom=()=>!!(LINK&&LINK.open);
+function startSolo(){if(inRoom()){goHome();toast('You are in a room with '+PEER.name+'. Leave the room (top of the page) to play solo.',3200);return;}if(LINK)leaveLive();const same=T&&!T.live&&db.sameTx>0;if(!T)db.sameTx=0;setup(same?T.q:pickQuote());}
 $('#m-solo').onclick=()=>{T=null;db.sameTx=0;startSolo();};
-$('#m-daily').onclick=()=>{if(LINK)leaveLive();T=null;db.sameTx=0;setup(QUOTES[RACE.dailyIndex(QUOTES.length)],{daily:true});};
+$('#m-daily').onclick=()=>{if(inRoom()){startSolo();return;}if(LINK)leaveLive();T=null;db.sameTx=0;setup(QUOTES[RACE.dailyIndex(QUOTES.length)],{daily:true});};
 /* ---- live: host and join ---- */
 function lobby(html){const L=$('#lobby');L.hidden=false;L.innerHTML=html;const r=L.getBoundingClientRect();if(r.top>innerHeight*0.6)L.scrollIntoView({block:'start',behavior:'smooth'});}
-function leaveLive(){if(LINK){LINK.send({t:'bye'});LINK.close();}LINK=null;SYNC=null;sessClear();RECON=null;NIGHT=null;NIGHTN=0;LIVECODE='';SUG=null;SUGC=null;PEER={name:'friend',ready:false,fin:null};IS_HOST=false;$('#lobby').hidden=true;}
+function leaveLive(){if(LINK){LINK.send({t:'bye'});LINK.close();}LINK=null;SYNC=null;sessClear();RECON=null;NIGHT=null;NIGHTN=0;LIVECODE='';SUG=null;SUGC=null;PICK=null;PEER={name:'friend',ready:false,fin:null};IS_HOST=false;$('#lobby').hidden=true;paintRoom();}
+/* the one deliberate way out of a room: forgets the room too, so no "rejoin" is offered */
+function leaveRoom(){db.lastRoom=null;save();const was=inRoom();leaveLive();goHome();if(was)toast('You left the room.');}
 function wireLink(){SYNC=RACE.Sync();
   return {
     onReady(code){if(RECON)return;lobby('<h2>Your race code</h2><div class="code" id="code">'+code+'</div><p class="sub">Send the code and this page’s link. <button class="link" id="b-copy">copy an invite link</button></p><p class="sub"><span class="dot"></span>waiting for a friend to join…</p><p><button id="b-cancel">cancel</button></p>');
       $('#b-cancel').onclick=()=>{leaveLive();};$('#b-copy').onclick=()=>{const url=location.href.split('#')[0]+'#join='+code;const done=()=>toast('Invite link copied.');if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(done,()=>prompt('Copy this link',url));else prompt('Copy this link',url);};},
-    onOpen(){const rc=!!RECON;if(!rc)MATCH={me:0,peer:0};LINK.send({t:'hi',name:(db.name||'').trim(),target:db.target,games:GAMEIDS(),skill:RACE.skillOf(db.tests)});if(!IS_HOST)SYNC.ping(LINK);
-      lobby('<h2><span class="dot on"></span>Connected'+(PEER.name!=='friend'?' to '+esc(PEER.name):'')+'</h2><p class="sub" id="lobby-sub">'+(IS_HOST?lobbyHostText():'The host picks the game, or a whole game night, and starts it. Keep your hands on the keys.')+'</p>'+(IS_HOST?'<p class="row"><button class="cta" id="b-start">'+startLabel()+'</button><button id="b-game">game: '+gameName()+'</button><button id="b-mode"'+(GAME!=='race'?' hidden':'')+'>mode: '+MODE+'</button><button id="b-hcap">fair start: '+(HCAP?'on':'off')+'</button><button id="b-night" title="a playlist of games in a row">game night: off</button><button id="b-cancel">leave</button></p><div class="gnbox" id="gn-box"></div>':'<div class="gnbox" id="gn-box"></div><p><button id="b-cancel">leave</button></p>'));
-      $('#b-cancel').onclick=()=>{leaveLive();goHome();};if(IS_HOST){$('#b-start').onclick=()=>{if(NIGHTN&&!(NIGHT&&!NIGHT.over))startNight();hostStart();};$('#b-night').onclick=nightToggle;nightBox();$('#b-game').onclick=e=>{if(GAMEIDS().filter(canGame).length<2){toast(PEER.name+' joined from the typing coach, which only has the race. The other games need the race page on both ends.',4200);return;}GAME=cycleGame(GAME);e.target.textContent='game: '+gameName();$('#b-start').textContent=startLabel();$('#b-mode').hidden=GAME!=='race';$('#lobby-sub').innerHTML=lobbyHostText();};$('#b-mode').onclick=e=>{MODE=MODE==='duel'?'team':'duel';e.target.textContent='mode: '+MODE;$('#lobby-sub').innerHTML=lobbyHostText();};$('#b-hcap').onclick=e=>{HCAP=!HCAP;e.target.textContent='fair start: '+(HCAP?'on':'off');$('#lobby-sub').innerHTML=lobbyHostText();};}else if(NIGHT){$('#gn-box').innerHTML='<span class="gnline">'+nightLine()+'</span>';}RACE.sfx.finish();if(rc)reconDone();sessSave();if(IS_HOST&&NIGHT&&!NIGHT.over)LINK.send(nightMsg());},
+    onOpen(){const rc=!!RECON;if(!rc){MATCH={me:0,peer:0};PICK=null;}LINK.send({t:'hi',name:(db.name||'').trim(),target:db.target,games:GAMEIDS(),skill:RACE.skillOf(db.tests)});if(!IS_HOST)SYNC.ping(LINK);
+      db.lastRoom={code:LIVECODE,peer:PEER.name,host:IS_HOST,t:Date.now()};save();
+      roomUI();RACE.sfx.finish();if(rc)reconDone();sessSave();if(IS_HOST&&NIGHT&&!NIGHT.over)LINK.send(nightMsg());paintRoom();},
     onData(d){switch(d.t){
-      case 'hi':{PEER.name=clipName(d.name)||'friend';if(d.target)PEER.target=+d.target;if(Array.isArray(d.games))PEER.games=d.games;if(d.skill&&+d.skill.wpm>0)PEER.skill={wpm:+d.skill.wpm,n:+d.skill.n||0};const ls=$('#lobby-sub');if(ls&&IS_HOST)ls.innerHTML=lobbyHostText();const h2=$('#lobby h2');if(h2)h2.innerHTML='<span class="dot on"></span>Connected to '+esc(PEER.name);if(track&&T&&T.live)track.rename('peer',PEER.name);PGAMES().forEach(g=>g.rename());sessSave();break;}
+      case 'hi':{PEER.name=clipName(d.name)||'friend';if(d.target)PEER.target=+d.target;if(Array.isArray(d.games))PEER.games=d.games;if(d.skill&&+d.skill.wpm>0)PEER.skill={wpm:+d.skill.wpm,n:+d.skill.n||0};if(db.lastRoom&&db.lastRoom.code===LIVECODE){db.lastRoom.peer=PEER.name;save();}
+        if(roomShowing())roomUI();else{const ls=$('#lobby-sub');if(ls&&IS_HOST)ls.innerHTML=lobbyHostText();const h2=$('#lobby h2');if(h2)h2.innerHTML='<span class="dot on"></span>Connected to '+esc(PEER.name);}if(track&&T&&T.live)track.rename('peer',PEER.name);PGAMES().forEach(g=>g.rename());sessSave();paintRoom();break;}
+      case 'pick':{const g=String(d.g||'');if(!GAMEIDS().includes(g)||!canGame(g)||(NIGHT&&!NIGHT.over))break;PICK={g,by:'peer',ok:false};if(IS_HOST){GAME=g;db.game=GAME;save();}
+        toast(PEER.name+' picked '+gameTitle(g)+'. '+(inLiveGame()?'':'Press Enter when you are ready.'),3500);RACE.sfx.callout();if(roomShowing())roomUI();else if(!$('#home').hidden)goHome();break;}
+      case 'pickok':{if(IS_HOST&&PICK&&PICK.g===String(d.g||'')&&!inLiveGame()){GAME=PICK.g;db.game=GAME;save();hostStartOnce();}break;}
+      case 'room':{if(inLiveGame()){const who=PEER.name;stopPG();T=null;goHome();toast(who+' stopped the game. You are both back in the room.',3500);}break;}
       case 'ping':LINK.send({t:'pong',a:d.a,b:performance.now()});break;
       case 'pong':if(IS_HOST){const r=performance.now()-(+d.a||0);if(r>0&&r<5000)HRTT=HRTT==null?r:Math.min(r,HRTT*0.6+r*0.4);}else if(SYNC)SYNC.pong(d);break;
       case 'race':{const q=[String(d.text||''),String(d.src||'')];if(!q[0])break;PEER.fin=null;PEER.ready=false;const startAt=d.startAt-(IS_HOST?0:SYNC.offset);if(T&&T.live&&T.mode!==(d.mode||'duel'))MATCH={me:0,peer:0};setup(q,{live:true,startAt,mode:d.mode||'duel',delay:IS_HOST?(d.delayHost||0):(d.delayPeer||0),peerDelay:IS_HOST?(d.delayPeer||0):(d.delayHost||0),pacer:d.pacer||db.target});break;}
@@ -1027,7 +1052,7 @@ function wireLink(){SYNC=RACE.Sync();
       case 'gn':if(!IS_HOST)nightFromHost(d);break;
       case 'gr':if(!IS_HOST)nightGr(d);break;
       case 'sug':{const g=String(d.g||'');if(IS_HOST&&!NIGHT&&GAMEIDS().includes(g)&&canGame(g)){SUG=g;paintSug();toast(PEER.name+' suggests '+gameTitle(g)+'.',3000);}break;}
-      case 'bye':{if(d.reload&&startRecon(false))break;const who=PEER.name;toast(who+' left the game.');leaveLive();{const ag=actPG();if(ag){ag.peerLeft(who);break;}}if(T&&T.live&&T.state==='go'){raceForfeit(who);}else if(T&&T.live&&T.state!=='done'){goHome();}else if(T&&T.live){if(T.myFin&&!PEER.fin)raceForfeitDone(who);const b=$('#b-next');if(b){b.disabled=true;b.textContent=who+' left';}}break;}}},
+      case 'bye':{if(d.reload&&startRecon(false))break;const who=PEER.name;toast(who+' left the room.');db.lastRoom=null;save();leaveLive();{const ag=actPG();if(ag){ag.peerLeft(who);break;}}if(T&&T.live&&T.state==='go'){raceForfeit(who);}else if(T&&T.live&&T.state!=='done'){goHome();}else if(T&&T.live){if(T.myFin&&!PEER.fin)raceForfeitDone(who);const b=$('#b-next');if(b){b.disabled=true;b.textContent=who+' left';}}break;}}},
     onClose(){if(RECON)return;if(LIVECODE&&startRecon(false))return;toast('Connection closed.');if((T&&T.live&&T.state!=='done')||PGAMES().some(g=>g.playingLive()))goHome();leaveLive();},
     onStatus(t){const s=$('#lobby .sub');if(s&&!(LINK&&LINK.open))s.textContent=t;},
     onError(e){if(reconFail())return;toast(RACE.errName(e),4000);if(!(LINK&&LINK.open)){leaveLive();goHome();}}};}
@@ -1036,7 +1061,7 @@ function lobbyHostText(){const pt=PEER.target;const mine=db.target;if(xgOf(GAME)
   return s+' Press Start when you are both ready.';}
 /* a rematch request that crossed the host's own start belongs to the game that just ended */
 function staleRq(){return Date.now()-(hostStart.at||0)<3000||!!(T&&T.live&&T.state==='count');}
-function hostStart(){if(!LINK||!LINK.open)return;hostStart.at=Date.now();if(GAME!=='race'&&!canGame(GAME)){toast(gameTitle(GAME)+' needs the race page on both ends; starting a race.',3500);GAME='race';}if(xgOf(GAME)){xgOf(GAME).hostStart();return;}if(GAME==='turf'){TURF.hostStart();return;}const q=pickQuote();const startAt=performance.now()+3800;const total=q[0].length;const pt=PEER.target||db.target,mine=db.target;let delayHost=0,delayPeer=0;
+function hostStart(){if(!LINK||!LINK.open)return;hostStart.at=Date.now();PICK=null;if(GAME!=='race'&&!canGame(GAME)){toast(gameTitle(GAME)+' needs the race page on both ends; starting a race.',3500);GAME='race';}if(xgOf(GAME)){xgOf(GAME).hostStart();return;}if(GAME==='turf'){TURF.hostStart();return;}const q=pickQuote();const startAt=performance.now()+3800;const total=q[0].length;const pt=PEER.target||db.target,mine=db.target;let delayHost=0,delayPeer=0;
   if(MODE==='duel'&&HCAP){const h=fairNow(total).h;if(h>0)delayHost=h;else delayPeer=-h;}
   const pacer=MODE==='team'?Math.round((mine+pt)/2):mine;LINK.send({t:'race',text:q[0],src:q[1],startAt,mode:MODE,delayHost,delayPeer,pacer});if(T&&T.live&&T.mode!==MODE)MATCH={me:0,peer:0};PEER.fin=null;PEER.ready=false;T=null;setup(q,{live:true,startAt,mode:MODE,delay:delayHost,peerDelay:delayPeer,pacer});}
 /* restart or rematch: one click from either player starts a new game for both */
@@ -1044,15 +1069,15 @@ function restartLive(now){if(!LINK||!LINK.open)return;if(IS_HOST){hostStartOnce(
 /* both clicking at once must not start two games */
 function hostStartOnce(){if(Date.now()-(hostStartOnce.at||0)<1000)return;hostStartOnce.at=Date.now();hostStart();}
 function maybeRematch(){if(!IS_HOST||!PEER.ready)return;{const ag=actPG();if(ag){if(ag.meReady())hostStart();return;}}if(T&&T.hostReady)hostStart();}
-async function host(code0,recon){if(recon)dropLink();else leaveLive();IS_HOST=true;LIVECODE=typeof code0==='string'&&code0?code0:RACE.code();if(!recon)lobby('<p class="sub">Connecting to the matchmaking server…</p>');LINK=RACE.Link(wireLink());try{await LINK.host(LIVECODE);}catch(e){if(reconFail())return;toast(RACE.errName(e.message),4000);leaveLive();}}
+async function host(code0,recon){if(!recon&&inRoom()){goHome();toast('You are already in a room with '+PEER.name+': pick a game there.',3000);return;}if(recon)dropLink();else leaveLive();IS_HOST=true;LIVECODE=typeof code0==='string'&&code0?code0:RACE.code();if(!recon)lobby('<p class="sub">Connecting to the matchmaking server…</p>');LINK=RACE.Link(wireLink());try{await LINK.host(LIVECODE);}catch(e){if(reconFail())return;toast(RACE.errName(e.message),4000);leaveLive();}}
 async function join(code,recon){code=RACE.cleanCode(code);if(code.length<4){toast('A code has four letters.');return;}if(recon)dropLink();else leaveLive();IS_HOST=false;LIVECODE=code;if(!recon)lobby('<p class="sub">Joining '+code+'…</p>');LINK=RACE.Link(wireLink());try{await LINK.join(code);}catch(e){if(reconFail())return;toast(RACE.errName(e.message),4000);leaveLive();}}
 $('#m-host').onclick=()=>{RACE.sfx.unlock();host();};
-$('#m-join').onclick=()=>{lobby('<h2>Join a race</h2><div class="join"><input id="code-in" placeholder="CODE" maxlength="6" autocomplete="off"><button class="cta" id="b-join" style="font-size:1rem;padding:.55rem 1rem">Join</button><button id="b-cancel">cancel</button></div>');const i=$('#code-in');i.focus();$('#b-join').onclick=()=>join(i.value);i.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();e.stopPropagation();join(i.value);}};$('#b-cancel').onclick=()=>{$('#lobby').hidden=true;};};
+$('#m-join').onclick=()=>{if(inRoom()){goHome();toast('You are already in a room with '+PEER.name+'.',3000);return;}lobby('<h2>Join a race</h2><div class="join"><input id="code-in" placeholder="CODE" maxlength="6" autocomplete="off"><button class="cta" id="b-join" style="font-size:1rem;padding:.55rem 1rem">Join</button><button id="b-cancel">cancel</button></div>');const i=$('#code-in');i.focus();$('#b-join').onclick=()=>join(i.value);i.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();e.stopPropagation();join(i.value);}};$('#b-cancel').onclick=()=>{$('#lobby').hidden=true;};};
 /* ---- links in the hash: a friend's ghost, or a race code ---- */
 function readHash(){{const m=/^#([a-z]+)\b/.exec(location.hash);if(m&&m[1]!=='race'&&GAMEIDS().includes(m[1]))setTab(m[1]);}const g=RACE.parseHash(location.hash);if(g){const q=quoteByHash(g.h);if(q){FRIEND=g;$('#ghostnote').hidden=false;$('#ghostnote').innerHTML=esc(g.name||'A friend')+' sent a ghost at '+r0(g.wpm)+' wpm. <button class="link" id="b-ghost">race it now</button>';$('#b-ghost').onclick=()=>{db.sameTx=0;T=null;setup(q);};}else{toast('That ghost link is from a different quote list.');}}
   const j=RACE.parseJoin(location.hash);if(j){join(j);}}
 window.addEventListener('beforeunload',()=>{if(LINK){sessSave();LINK.send({t:'bye',reload:1});}});
-window.PR={get XG(){return XG;},fairNow,fairTurf,fairMeasured,get FAIR(){return FAIR;},get TURF(){return TURF;},get GAME(){return GAME;},setTab,get db(){return db;},get T(){return T;},setup,finish,startSolo,host,join,goHome,QUOTES,get LINK(){return LINK;},get PEER(){return PEER;},hostStart,get NIGHT(){return NIGHT;},get LASTNIGHT(){return LASTNIGHT;},get RECON(){return RECON;},get MATCH(){return MATCH;},get SUG(){return SUG;},get NEXTG(){return NEXTG;},get IS_HOST(){return IS_HOST;},hubTick,openProfile,renderQuests,questsFor,lvOf,leaveLive,dropForfeit,get TUT(){return TUT;},get MAXWPM(){return MAXWPM;}};
+window.PR={get XG(){return XG;},fairNow,fairTurf,fairMeasured,get FAIR(){return FAIR;},get TURF(){return TURF;},get GAME(){return GAME;},setTab,get db(){return db;},get T(){return T;},setup,finish,startSolo,host,join,goHome,QUOTES,get LINK(){return LINK;},get PEER(){return PEER;},hostStart,get NIGHT(){return NIGHT;},get LASTNIGHT(){return LASTNIGHT;},get RECON(){return RECON;},get MATCH(){return MATCH;},get SUG(){return SUG;},get NEXTG(){return NEXTG;},get IS_HOST(){return IS_HOST;},hubTick,openProfile,renderQuests,questsFor,lvOf,leaveLive,leaveRoom,roomUI,pickGame,pickReady,get PICK(){return PICK;},inRoom,dropForfeit,get TUT(){return TUT;},get MAXWPM(){return MAXWPM;}};
 function demo(){const el=$('#demo');if(!el)return;const tk=RACE.Track(el);tk.setPlayers([{id:'a',kind:'me',name:myName()},{id:'f',kind:'friend',name:'friend'},{id:'g',kind:'ghost',name:'your ghost'},{id:'p',kind:'pacer',name:'pacer'}]);el.classList.remove('counting');el.classList.add('racing');const t0=performance.now();
   (function f(){if(!$('#home').hidden){const t=((performance.now()-t0)%8000)/6500;const k=Math.min(1,t);const e=x=>Math.min(1,Math.max(0,x));const base=db.target||40;
     const pa=e(k*(0.9+0.16*k)+0.012*Math.sin(t*17)),pf=e(k*(1.02-0.05*k)+0.01*Math.sin(t*11+1)),pg=e(k*0.985+0.008*Math.sin(t*7)),pp=e(k*0.97);
@@ -1158,7 +1183,7 @@ function hubTick(){for(const g of PGAMES()){let S=null;try{S=g.S;}catch(e){}if(!
   {const S=TURF.S;const c=$('#tctl');if(c)c.classList.toggle('hubdone',!!(S&&S.state==='done'));}
   {const on=!!(LINK&&LINK.open);const sg=$('#b-sug');if(sg)sg.hidden=!on;const ng=$('#b-ng');if(ng)ng.hidden=!on&&!RECON;document.querySelectorAll('[data-react]').forEach(b=>{const r=b.parentNode;if(r)r.hidden=!on&&!RECON;});document.querySelectorAll('#tres [data-r]').forEach(b=>{const r=b.parentNode;if(r)r.hidden=!on&&!RECON;});}
   if(!$('#home').hidden&&pdb().q.day!==RACE.dayKey())renderQuests();
-  if(TOUCH)touchClean();
+  if(TOUCH)touchClean();paintRoom();
   visGame();for(const g of XG){const sec=document.getElementById(g.id);const c=sec&&sec.querySelector('.ctl');if(!c)continue;let done=false;try{done=!!(g.S&&g.S.state==='done');}catch(e){}c.classList.toggle('hubdone',done);}
   if(NIGHT)paintNight();}
 /* on phones and tablets there is no Enter or Esc to press: drop those hints */
@@ -1374,7 +1399,7 @@ const TUT=(()=>{let cur=null,raf=0,okAt=0;
 window.TUT=TUT;
 /* cheat sheets: small pictures, few words */
 function cheatOf(id){if(id==='race')return CHEAT_RACE;if(id==='turf')return CHEAT_TURF;const g=xgOf(id);try{return g&&typeof g.cheat==='function'?g.cheat():null;}catch(e){return null;}}
-function showCheat(id){const c=cheatOf(id);if(!c)return;lobby('<h2>'+esc(gameTitle(id))+' at a glance</h2><div class="cheat">'+c+'</div><p class="row"><button class="cta small" data-tut="'+id+'">play the tutorial</button><button id="b-cancel">close</button></p>');$('#b-cancel').onclick=()=>{$('#lobby').hidden=true;};}
+function showCheat(id){const c=cheatOf(id);if(!c)return;lobby('<h2>'+esc(gameTitle(id))+' at a glance</h2><div class="cheat">'+c+'</div><p class="row"><button class="cta small" data-tut="'+id+'">play the tutorial</button><button id="b-cancel">close</button></p>');$('#b-cancel').onclick=()=>{if(inRoom())roomUI();else $('#lobby').hidden=true;};}
 const cheatCell=(pic,txt)=>'<div class="ccell"><div class="cpic">'+pic+'</div><div class="ctxt">'+txt+'</div></div>';
 const CHEAT_RACE=cheatCell('<i class="cl me" style="--w:72%"></i><i class="cl pc" style="--w:55%"></i>','type to move your dot; beat the pacer')+
   cheatCell('<span class="cw ok">the</span><span class="kbd">space</span><span class="cw">next</span>','space moves to the next word')+
@@ -1513,7 +1538,7 @@ function ch(c){if(S.skip){if(c===S.skip[0]){S.skip=S.skip.slice(1);return;}S.ski
   S.aimW=cs.map(i=>view(i).w);const hit=S.buf?cs.find(i=>view(i).w===S.buf):null;if(hit!=null){S.buf='';claim(hit);}
   sendBuf();paint();}
 function key(e){if(!active())return false;const k=e.key;
-  if(S.state==='done'){if(k==='Enter'){e.preventDefault();const b=$('#t-next');if(b&&!b.disabled)b.click();}else if(k==='Escape'&&!S.live){e.preventDefault();stop();goHome();}else if(S.live&&/^[1-4]$/.test(k)){e.preventDefault();react(+k-1);}return true;}
+  if(S.state==='done'){if(k==='Enter'){e.preventDefault();const b=$('#t-next');if(b&&!b.disabled)b.click();}else if(k==='Escape'){e.preventDefault();stop();goHome();/* live: back to the room, still connected */}else if(S.live&&/^[1-4]$/.test(k)){e.preventDefault();react(+k-1);}return true;}
   if(k==='Escape'){e.preventDefault();if(!S.live)solo();return true;}
   if(k==='Tab'||k==='Enter'){e.preventDefault();return true;}
   const t=now();if(S.state!=='go'||t<S.hold[S.me]){if(k.length===1&&!e.metaKey&&!e.ctrlKey){e.preventDefault();note(S.state==='count'?'wait for GO':'not yet: '+((S.hold[S.me]-t)/1000).toFixed(1)+' s','hot',700);}return true;}
@@ -1626,10 +1651,10 @@ function results(quiet){const R=$('#tres');if(!R||!S||!S.res)return;R.hidden=fal
   else if(S.st.snipes>=2)v+=' '+on+' beat you to '+S.st.snipes+' words you were halfway through.';
   R.innerHTML='<div class="tresh"><div><div class="lbl">'+(S.live?'live 1v1':S.bot?'vs bot at '+S.res.before+' wpm':'practice')+'</div><div class="rank tbig">'+head+'</div></div><div class="tfinal"><b class="me">'+me+'</b><span class="sub">–</span><b class="op">'+op+'</b></div></div>'+
     '<table class="rscore"><tr><th></th><th style="color:var(--main)">'+esc(myName())+'</th><th style="color:var(--oc)">'+esc(S.bot?'bot':on)+'</th></tr>'+row('squares taken',Math.round(score(S.me)-(S.bank[S.me]||0)-(S.hcp[S.me]||0))+' pts',Math.round(score(S.op)-(S.bank[S.op]||0)-(S.hcp[S.op]||0))+' pts')+row('held at the end',squares(S.me),squares(S.op))+row('lines',lnMe+' <span class="sub">(+'+S.bank[S.me]+')</span>',lnOp+' <span class="sub">(+'+S.bank[S.op]+')</span>')+(S.hcp[S.me]||S.hcp[S.op]?row('fair start points','+'+S.hcp[S.me],'+'+S.hcp[S.op]):'')+(S.bonus[S.me]>=0.5||S.bonus[S.op]>=0.5?row('catch-up points','+'+Math.round(S.bonus[S.me]),'+'+Math.round(S.bonus[S.op])):'')+row('steals',S.st.steals,S.st.lost)+row('wpm',r0(sm.wpm),opW)+row('accuracy',r1(sm.acc)+'%',opA)+row('best clean streak',sm.streak,S.bot?'':os?(+os.streak||0):'…')+(S.bot?'':row('longest word',esc(sm.longest||'none'),opL))+'</table>'+
-    '<div class="verdict">'+v+'</div><p class="row" style="margin-top:1rem">'+(S.live?'<button class="cta" id="t-next">'+(S.ready?'waiting for '+esc(on)+'…':'Rematch')+'</button>'+nextGameHtml()+'<button id="t-leave">leave</button><span class="sub" style="font-size:.85rem">reactions: '+REACTS.map((r,i)=>'<button class="link small" data-r="'+i+'">'+(i+1)+' '+r+'</button>').join('')+'</span>':'<button class="cta" id="t-next">Play again</button><button id="t-home">home</button><span class="sub" style="font-size:.85rem">Enter plays again, Esc goes home</span>')+'</p>';
+    '<div class="verdict">'+v+'</div><p class="row" style="margin-top:1rem">'+(S.live?'<button class="cta" id="t-next">'+(S.ready?'waiting for '+esc(on)+'…':'Rematch')+'</button>'+nextGameHtml()+'<button id="t-leave" title="you stay connected">back to room</button><span class="sub" style="font-size:.85rem">reactions: '+REACTS.map((r,i)=>'<button class="link small" data-r="'+i+'">'+(i+1)+' '+r+'</button>').join('')+'</span>':'<button class="cta" id="t-next">Play again</button><button id="t-home">home</button><span class="sub" style="font-size:.85rem">Enter plays again, Esc goes home</span>')+'</p>';
   const nx=$('#t-next');if(S.live&&S.ready)nx.disabled=true;
   nx.onclick=()=>{if(!S)return;if(!S.live){solo();return;}if(!LINK||!LINK.open)return;nx.disabled=true;nx.textContent='starting…';restartLive();};
-  const lv=$('#t-leave');if(lv)lv.onclick=()=>{leaveLive();stop();goHome();};const hm=$('#t-home');if(hm)hm.onclick=()=>{stop();goHome();};
+  const lv=$('#t-leave');if(lv)lv.onclick=()=>{stop();goHome();};const hm=$('#t-home');if(hm)hm.onclick=()=>{stop();goHome();};
   R.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>react(+b.dataset.r));if(S.live)wireNextGame('turf');}
 function stop(){cancelAnimationFrame(raf);clearInterval(loop.iv);if(S)clearTimeout(S.wait);S=null;const R=$('#turf');if(R)R.hidden=true;document.body.classList.remove('typing');}
 function solo(o){o=o||{};RACE.sfx.unlock();const wpm=o.botWpm||tdb().bot;start({live:false,auth:true,me:'h',bot:o.noBot?null:mkBot(wpm),seed:o.seed||Math.random().toString(36).slice(2,10),startAt:now()+(o.count!=null?o.count:2300),dur:o.dur||cfg.dur});if(o.noBot)S.botless=1;if(o.selfBot)S.sb=mkBot(o.selfBot);}
@@ -5237,7 +5262,7 @@ function setTab(g){GAME=GAMEIDS().includes(g)?g:'race';db.game=GAME;save();for(c
 function renderTurfHome(){const d=TURF.tdb();$('#bot').textContent=d.bot;const tr=RACE.tier(d.bot);$('#btier').textContent=tr.label;$('#btier').style.setProperty('--tc',tr.color);const g=d.games.length;
   $('#tstats').innerHTML=g?'<div><div class="lbl">games</div><div class="v">'+g+'</div></div><div><div class="lbl">vs bot</div><div class="v">'+d.w+' – '+d.l+'</div></div>'+(d.lw+d.ll?'<div><div class="lbl">live record</div><div class="v">'+d.lw+' – '+d.ll+'</div></div>':'')+'<div><div class="lbl">best score</div><div class="v">'+d.best+'</div></div>':'<span class="sub">The bot starts at your race pacer speed. Beat it and it gets 2 wpm faster; lose and it eases off by 1.</span>';}
 $('#b-bup').onclick=()=>{TURF.tdb().bot++;save();renderTurfHome();};$('#b-bdn').onclick=()=>{const d=TURF.tdb();d.bot=Math.max(15,d.bot-1);save();renderTurfHome();};
-$('#t-solo').onclick=()=>{if(LINK)leaveLive();TURF.solo();};$('#t-host').onclick=()=>{RACE.sfx.unlock();host();};$('#t-join').onclick=()=>$('#m-join').onclick();
+$('#t-solo').onclick=()=>{if(inRoom()){startSolo();return;}if(LINK)leaveLive();TURF.solo();};$('#t-host').onclick=()=>{RACE.sfx.unlock();host();};$('#t-join').onclick=()=>$('#m-join').onclick();
 $('#t-how').onclick=()=>{lobby('<h2>How Word Turf works</h2><ol class="trules"><li>Type any word on the board. The moment it is right, the square is yours. No Enter, no space.</li><li>Points are banked the moment you take a square and stay yours even if it is stolen back: 1 for a free square, 2 for a steal, 2 more on gold.</li><li>A taken square shows a new, longer word. Type it to steal the square. Your rival can steal it back the same way.</li><li>Own all five squares of a row, column or diagonal and you bank 3 points (each line once per player); the line is struck through and sealed for 15 seconds, then its squares are open again. When someone holds 4 of a line, the fifth square pulses: LINE in your colour, BLOCK in theirs.</li><li>Gold squares are worth 2 more each time they are taken: the centre starts gold and two more turn gold during the game. Five words in a row with no typo give you a shield: your next square is sealed for 12 seconds.</li><li>Catch-up (live games): the slower typist’s squares score more, measured from how fast you are both typing in this game, up to double. The multiplier shows next to the score.</li><li>Final rush: in the last 12 seconds every taken square switches to a short word, so anything can be stolen fast.</li><li>Nothing to erase: what you type lights up on the squares, and a wrong letter just drops the word (the board flashes red). Keep typing.</li><li>You can see what your rival is typing: their letters are underlined on the board in their colour. Get there first.</li><li>75 seconds. Most points wins. Against a friend, first to 2 games takes the match.</li></ol><p><button id="b-cancel">close</button></p>');$('#b-cancel').onclick=()=>{$('#lobby').hidden=true;};};
 /* ---- fair start from measured speed, corrected after every result (helpers in race-core) ---- */
 let FAIR={link:null,adj:0,races:0,mw:null,tw:null};
@@ -5253,13 +5278,44 @@ function fairNext(){const f=fairNow(200);return 'Next fair start: '+fairSays(f.h
    by how much slower they are typing right now (up to double). fairTurf gives the starting guess the game blends in. */
 function fairTurf(){return fairSpeeds('tw');}
 function fairTurfText(){if(!HCAP)return ' Catch-up is off.';const f=fairTurf();return ' Catch-up: the slower typist’s squares score more, by how much slower you are both typing during the game (up to double), so nobody waits. It starts from '+RACE.fairWho('your',f.me)+'; '+RACE.fairWho(esc(PEER.name)+'’s',f.pe)+', and within a few words it is going on what you actually type.';}
+/* ---- the room: once two players connect they stay connected until one clicks "leave room" or closes the tab.
+   Home is the room (the lobby card): either player picks any game both have; the other gets a Ready button (Enter);
+   the host stays the authority and starts it. Quit / Esc / Home keep the link. ---- */
+const roomShowing=()=>inRoom()&&!$('#home').hidden&&!$('#lobby').hidden&&!!$('#r-pick');
+function roomUI(){if(!inRoom())return;const L=GAMEIDS().filter(canGame);const night=!!(NIGHT&&!NIGHT.over);const sel=IS_HOST?GAME:(PICK?PICK.g:(NEXTG||GAME));
+  const grid=L.length>1&&!night?'<div class="lbl" style="margin-top:.6rem">pick a game'+(IS_HOST?'':' (the host starts it)')+'</div><div class="rgames" id="r-games">'+L.map(g=>'<button class="rg'+(g===sel?' on':'')+'" data-g="'+g+'">'+esc(gameTitle(g))+'</button>').join('')+'</div>':'';
+  let pk='';if(PICK&&!night){const t=esc(gameTitle(PICK.g));if(PICK.by==='peer'&&!PICK.ok)pk='<b>'+esc(PEER.name)+' picked '+t+'.</b><button class="cta small" id="b-ready">'+(IS_HOST?'Start it':'Ready')+' <span class="kbd khint">Enter</span></button>';else if(PICK.by==='me'&&IS_HOST)pk='You picked '+t+': '+esc(PEER.name)+' gets a Ready button, or press Start now.';else if(PICK.by==='me')pk=PICK.ok?'Ready. '+esc(PEER.name)+' starts '+t+'.':'You picked '+t+'. Waiting for '+esc(PEER.name)+'…';}
+  lobby('<h2><span class="dot on"></span>Connected'+(PEER.name!=='friend'?' to '+esc(PEER.name):'')+'</h2><p class="sub" id="lobby-sub">'+(IS_HOST?lobbyHostText():'You two stay connected between games. Pick a game here, or wait for '+esc(PEER.name)+' to pick one; the host starts it. Keep your hands on the keys.')+'</p>'+grid+'<div id="r-pick">'+pk+'</div>'+
+    (IS_HOST?'<p class="row"><button class="cta" id="b-start">'+startLabel()+'</button><button id="b-game">game: '+gameName()+'</button><button id="b-mode"'+(GAME!=='race'?' hidden':'')+'>mode: '+MODE+'</button><button id="b-hcap">fair start: '+(HCAP?'on':'off')+'</button><button id="b-night" title="a playlist of games in a row">game night: off</button><button id="b-cancel">leave room</button></p><div class="gnbox" id="gn-box"></div>':'<div class="gnbox" id="gn-box"></div><p><button id="b-cancel">leave room</button></p>'));
+  $('#b-cancel').onclick=e=>twoStep(e.currentTarget,'leave '+PEER.name+'? click again',leaveRoom);
+  document.querySelectorAll('#r-games .rg').forEach(b=>b.onclick=()=>pickGame(b.dataset.g));const br=$('#b-ready');if(br)br.onclick=pickReady;
+  if(IS_HOST){$('#b-start').onclick=()=>{if(NIGHTN&&!(NIGHT&&!NIGHT.over))startNight();hostStart();};$('#b-night').onclick=nightToggle;nightBox();
+    $('#b-game').onclick=()=>{if(GAMEIDS().filter(canGame).length<2){toast(PEER.name+' joined from the typing coach, which only has the race. The other games need the race page on both ends.',4200);return;}pickGame(cycleGame(GAME));};
+    $('#b-mode').onclick=()=>{MODE=MODE==='duel'?'team':'duel';roomUI();};$('#b-hcap').onclick=()=>{HCAP=!HCAP;roomUI();};}
+  else if(NIGHT){$('#gn-box').innerHTML='<span class="gnline">'+nightLine()+'</span>';}}
+function pickGame(g){if(!inRoom()||!GAMEIDS().includes(g)||!canGame(g))return;if(NIGHT&&!NIGHT.over){toast('Game night is on: the playlist picks the games.');return;}
+  if(IS_HOST){GAME=g;db.game=GAME;save();LINK.send({t:'ng',g});}PICK={g,by:'me',ok:false};LINK.send({t:'pick',g});if(roomShowing())roomUI();else toast('You picked '+gameTitle(g)+'.');}
+function pickReady(){if(!inRoom()||!PICK||PICK.by!=='peer')return;const g=PICK.g;if(IS_HOST){GAME=g;db.game=GAME;save();hostStart();}else{PICK.ok=true;LINK.send({t:'pickok',g});if(roomShowing())roomUI();}}
+/* the slim bar under the header: in a room, reconnecting, or "rejoin" after the room was lost */
+function paintRoom(){const b=$('#roombar');if(!b)return;const lr=db.lastRoom;const on=inRoom();const rc=!!RECON;const rejoin=!on&&!rc&&!LINK&&lr&&lr.code&&Date.now()-(lr.t||0)<3*3600e3&&!$('#home').hidden;
+  const h=on?'<span class="dot on"></span><span>In a room with <b>'+esc(PEER.name)+'</b></span><span class="sub rbcode">code '+esc(LIVECODE)+'</span><span class="rbbtns">'+($('#home').hidden||$('#lobby').hidden?'<button class="small" id="rb-room">room</button>':'')+'<button class="small" id="rb-leave">leave room</button></span>'
+    :rc?'<span class="dot"></span><span>Reconnecting to <b>'+esc(RECON.who)+'</b>…</span>'
+    :rejoin?'<span class="dot"></span><span>Your room with <b>'+esc(lr.peer)+'</b> closed</span><span class="rbbtns"><button class="cta small" id="rb-rejoin">rejoin '+esc(lr.peer)+'</button><button class="small" id="rb-forget">dismiss</button></span>':'';
+  if(on&&b.querySelector('[data-armed]'))return;/* a "click again" prompt is not repainted away while the room is still up */b.hidden=!h;if(b._h!==h){b.innerHTML=h;b._h=h;}}
+$('#roombar').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.id==='rb-leave')twoStep(b,'leave '+PEER.name+'? click again',leaveRoom);else if(b.id==='rb-room')goHome();else if(b.id==='rb-rejoin')rejoinRoom();else if(b.id==='rb-forget'){db.lastRoom=null;save();paintRoom();}});
+function rejoinRoom(){const lr=db.lastRoom;if(!lr||!lr.code)return;toast('Rejoining '+lr.peer+'. They need to click rejoin too.',3500);if(lr.host)host(lr.code);else join(lr.code);}
+/* game modules keep their own "leave" and solo buttons; in a room those go back to the room, or ask before dropping the link */
+document.addEventListener('click',e=>{if(!inRoom())return;const b=e.target.closest&&e.target.closest('button');if(!b||!b.id)return;
+  if(/^[a-z]+-leave$/.test(b.id)&&b.id!=='rb-leave'){e.preventDefault();e.stopPropagation();if(inLiveGame()&&LINK&&LINK.open)LINK.send({t:'room'});goHome();return;}
+  if(b.classList.contains('mode')&&b.closest('.hero')&&!/-(host|join|how|tut)$/.test(b.id)){e.preventDefault();e.stopPropagation();twoStep(b,'leave the room with '+PEER.name+'? click again',()=>{leaveRoom();b.click();});}},true);
 /* ---- on-screen controls and options ---- */
 function twoStep(btn,label,fn){if(btn.dataset.armed){fn();return;}btn.dataset.armed='1';const old=btn.innerHTML;btn.textContent=label;btn.classList.add('warn');setTimeout(()=>{if(btn.isConnected){delete btn.dataset.armed;btn.innerHTML=old;btn.classList.remove('warn');}},3000);}
-function quitGame(btn){const live=(T&&T.live)||PGAMES().some(g=>g.S&&g.S.live);const go=()=>{if(live)leaveLive();stopPG();goHome();};if(live)twoStep(btn,'leave the match? click again',go);else go();}
+/* quit never drops the link: mid-game it stops the game for both and returns both to the room; after a game it just goes back to the room */
+function quitGame(btn){const playing=inRoom()&&inLiveGame();const go=()=>{if(playing&&LINK&&LINK.open)LINK.send({t:'room'});stopPG();goHome();};if(playing)twoStep(btn,'stop the game for both? click again',go);else go();}
 $('#c-restart').onclick=e=>{if(T&&T.live){twoStep(e.currentTarget,'new race for both? click again',()=>restartLive(true));return;}if(T)setup(T.q);};
 $('#c-new').onclick=()=>{if(T&&!T.live){db.sameTx=0;T=null;setup(pickQuote());}};
 $('#c-quit').onclick=e=>quitGame(e.currentTarget);
-function syncCtl(){const live=!!(T&&T.live);{const b=$('#c-restart');const want=live?'new race <span class="kbd">Tab</span>':'restart <span class="kbd">Tab</span>';if(!b.dataset.armed&&b.innerHTML!==want)b.innerHTML=want;}$('#c-restart').hidden=live&&!(LINK&&LINK.open);$('#c-new').hidden=live;$('#c-quit').textContent=live?'leave match':'quit';}
+function syncCtl(){const live=!!(T&&T.live);{const b=$('#c-restart');const want=live?'new race <span class="kbd">Tab</span>':'restart <span class="kbd">Tab</span>';if(!b.dataset.armed&&b.innerHTML!==want)b.innerHTML=want;}$('#c-restart').hidden=live&&!(LINK&&LINK.open);$('#c-new').hidden=live;{const q=$('#c-quit');if(!q.dataset.armed)q.textContent=live?'quit (both)':'quit';}}
 setInterval(()=>{if(!$('#race').hidden)syncCtl();},500);
 function seg(id,cur,opts){return '<span class="seg" id="'+id+'">'+opts.map(([v,l])=>'<button data-v="'+v+'" class="'+(String(cur)===String(v)?'on':'')+'">'+l+'</button>').join('')+'</span>';}
 function openOptions(){if((T&&T.live&&T.state!=='done')||PGAMES().some(g=>g.playingLive())){toast('Finish or leave the live game first.');return;}if(T||PGAMES().some(g=>g.S)){stopPG();goHome();}
@@ -5278,7 +5334,7 @@ function openOptions(){if((T&&T.live&&T.state!=='done')||PGAMES().some(g=>g.play
   $('#o-rrace').onclick=e=>twoStep(e.currentTarget,'click again to reset the race',()=>{Object.assign(db,{tests:[],ghosts:{},target:40,sameTx:0,streak:0,best:0,live:{w:0,l:0}});save();renderHome();toast('Race progress reset.');openOptions();});
   $('#o-rturf').onclick=e=>twoStep(e.currentTarget,'click again to reset Word Turf',()=>{db.turf=null;save();TURF.tdb();save();renderHome();if(GAME==='turf')renderTurfHome();toast('Word Turf record reset.');openOptions();});
   $('#o-rprof').onclick=e=>twoStep(e.currentTarget,'click again to reset your level',()=>{db.profile=null;save();paintBadge();renderHome();toast('Level, xp, achievements and quests reset.');openOptions();});
-  $('#b-cancel').onclick=()=>{$('#lobby').hidden=true;};}
+  $('#b-cancel').onclick=()=>{if(inRoom())roomUI();else $('#lobby').hidden=true;};}
 $('#b-opts').onclick=openOptions;
 document.addEventListener('mousedown',e=>{if(e.target.closest('.ctl button'))e.preventDefault();});
 if(db.turfDur)TURF.cfg.dur=+db.turfDur;if(db.hcap!=null)HCAP=!!db.hcap;
