@@ -65,8 +65,8 @@ h2{font-family:var(--ui);font-size:1.1rem;font-weight:600;margin:0 0 .5rem}
 .word{white-space:nowrap;position:relative;border-right:2px solid transparent}
 .word i{font-style:normal;color:color-mix(in srgb,var(--fg) 58%,var(--bg));border-left:2px solid transparent;margin-left:-2px;transition:color .05s}
 .word.active i:not(.ok):not(.bad){color:var(--fg)}
-.word i.ok{color:var(--fg)}
-.word.active i,.word.next i:not(.bad){color:var(--fg)}
+.word i.ok{color:color-mix(in srgb,var(--fg) 16%,var(--bg))}
+.word.active i:not(.ok),.word.next i:not(.bad){color:var(--fg)}
 /* finished words fade back so the word you are on stands out */
 .word.done i.ok{color:color-mix(in srgb,var(--fg) 16%,var(--bg))} .word i.bad{color:var(--err)}
 .word i.cur{border-left-color:var(--main);animation:blink 1s step-end infinite}
