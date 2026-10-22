@@ -1509,7 +1509,7 @@ function bindSettings(){const s=S();
 
 /* ---------- wiring ---------- */
 function showView(v){view=v;$$('nav button').forEach(b=>b.classList.toggle('on',b.dataset.view===v));$$('.view').forEach(x=>x.classList.toggle('on',x.id==='v-'+v));if(v==='progress'){renderProgress();renderRaceCard();}if(v==='settings')loadSettings();}
-$$('nav button').forEach(b=>b.onclick=e=>{e.target.blur();showView(b.dataset.view);});
+$$('nav button[data-view]').forEach(b=>b.onclick=e=>{e.target.blur();showView(b.dataset.view);});
 $('#b-session').onclick=e=>{e.target.blur();startSession('full');};$('#b-short').onclick=e=>{e.target.blur();startSession('short');};
 $('#b-bench').onclick=e=>{e.target.blur();startQuick('bench');};$('#b-quick').onclick=e=>{e.target.blur();startQuick('acc');};$('#b-burst').onclick=e=>{e.target.blur();startQuick('speed');};$('#b-resume').onclick=e=>{e.target.blur();const lv=db.live;if(!lv)return;session=lv;$('#idle').hidden=true;$('#run').hidden=false;$('#b-skip').hidden=false;newTest(BLOCKS[session.plan[session.bi][0]]);};$('#b-onboard').onclick=()=>{db.onboarded=true;save();$('#onboard').hidden=true;};$('#b-span').onclick=e=>{e.target.blur();startSession('span');};$('#b-blind').onclick=e=>{e.target.blur();startSession('blind');};
 $('#b-skip').onclick=e=>{e.target.blur();skipBlock();};
@@ -1539,7 +1539,7 @@ loadSettings();bindSettings();refreshIdle();
 RACE.injectCss();
 const RL={link:null,sync:null,host:false,peer:{name:'friend',ready:false,fin:null,target:null},opts:null,track:null,raf:0,lastSend:0,match:{me:0,peer:0},mode:'duel',hcap:true,peerEl:null};const REACTS=['gg','again!','so close','too fast'];
 function raceName(){return (S().raceName||'').trim()||'you';}
-function raceUrl(){const u=(S().raceUrl||'').trim();if(u)return u;return 'https://alecwh87.github.io/pace-race/';}
+function raceUrl(){const u=(S().raceUrl||'').trim();if(u)return u;return 'https://alecwh87.github.io/';}
 function raceGhosts(h){db.ghosts=db.ghosts||{};const g=db.ghosts[h]||{};const out=[];if(g.best)out.push({id:'ghost',kind:'ghost',name:'your ghost '+r0(g.best.wpm),rec:RACE.unpack(g.best.g),wpm:g.best.wpm});if(g.friend)out.push({id:'friend',kind:'friend',name:(g.friend.name||'friend')+' '+r0(g.friend.wpm),rec:RACE.unpack(g.friend.g),wpm:g.friend.wpm});return out;}
 function raceStoreGhost(h,kind,o){db.ghosts=db.ghosts||{};const g=db.ghosts[h]||(db.ghosts[h]={});if(kind==='best'){if(!g.best||o.wpm>g.best.wpm){g.best=o;return true;}return false;}g[kind]=o;const ks=Object.keys(db.ghosts);if(ks.length>160)delete db.ghosts[ks[0]];return false;}
 function raceSetup(){const o=RL.opts||{};RL.opts=null;const text=T.words.join(' ');const h=RACE.textHash(text);
