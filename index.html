@@ -682,7 +682,11 @@ function Link(h){let peer=null,conn=null,closed=false,opened=false,ready=false,i
   const base=()=>'pacerace/v1/'+code;
   const dcOpen=()=>!!(conn&&conn.open);
   function opened1(how){via=dcOpen()?'direct':how;if(opened)return;opened=true;clearTimeout(timer);say('onOpen');}
-  function deliver(d){if(!d||typeof d!=='object')return;if(d._s!=null){const k=d._f+':'+d._s;if(seen.has(k))return;seen.add(k);seenQ.push(k);if(seenQ.length>600)seen.delete(seenQ.shift());}
+  /* the host's partner never changes inside one link: data under another id means the friend's page was reloaded and reached us directly
+     before we knew the old page was gone. Report the drop once, so the app shows it and reconnects; the new page keeps knocking on the
+     relay and the replacement link welcomes it. */
+  let reborn=false;
+  function deliver(d){if(!d||typeof d!=='object')return;if(isHost&&partner&&d._f&&d._f!==partner){if(!closed&&!reborn){reborn=true;say('onClose');}return;}if(d._s!=null){const k=d._f+':'+d._s;if(seen.has(k))return;seen.add(k);seenQ.push(k);if(seenQ.length>600)seen.delete(seenQ.shift());}
     if(d._f&&!partner)partner=d._f;heard=Date.now();const o=Object.assign({},d);delete o._s;delete o._f;say('onData',o);}
   /* direct link (PeerJS / WebRTC) */
   function wire(c){if(conn&&conn!==c){try{c.close();}catch(e){}return;}conn=c;c.on('open',()=>{via='direct';opened1('direct');});c.on('data',deliver);
@@ -712,7 +716,10 @@ function Link(h){let peer=null,conn=null,closed=false,opened=false,ready=false,i
           if(m.k==='knock'){if(!isHost)return;if(partner&&partner!==m.f){api.pub(base()+'/'+m.f,JSON.stringify({k:'full',f:me}));return;}partner=m.f;heard=Date.now();brokers.forEach(x=>x.up&&x.pub(base()+'/'+partner,JSON.stringify({k:'welcome',f:me})));opened1('relay');return;}
           if(m.k==='welcome'){if(isHost)return;partner=m.f;opened1('relay');return;}
           if(m.k==='full'){if(!opened){closed=true;say('onError','full');}return;}
-          if(m.k==='gone'){if(m.f!==partner)return;const at=Date.now();setTimeout(()=>{if(heard<at&&opened&&!dcOpen()&&!closed)say('onClose');},4000);return;}
+          /* the broker lost the friend's connection. With a direct link up, ask over it first (an answer refreshes heard): a dead data channel
+             can look open for half a minute after the other tab closes, so silence for 4 s means they are gone and the channel is dropped too */
+          if(m.k==='gone'){if(m.f!==partner)return;const at=Date.now();if(dcOpen()){try{conn.send({t:'ping',a:performance.now(),_s:++seq,_f:me});}catch(e){}}
+            setTimeout(()=>{if(heard<at&&opened&&!closed){if(conn){const c=conn;conn=null;try{c.close();}catch(e){}}say('onClose');}},4000);return;}
           if(m.f===partner){if(m.d)deliver(m.d);if(Array.isArray(m.b))m.b.forEach(deliver);}},
         onDown(api,was){const i=brokers.indexOf(api);if(i>=0)brokers.splice(i,1);setTimeout(mk,was?800:4000);}});brokers.push(b);};mk();});}
   function watch(){timer=setTimeout(function chk(){if(opened||closed)return;const s=(Date.now()-t0)/1000;
@@ -728,8 +735,9 @@ function Link(h){let peer=null,conn=null,closed=false,opened=false,ready=false,i
     async host(c){isHost=true;code=c;relay();direct();watch();},
     async join(c){isHost=false;code=c;relay();direct();watch();},
     send(o){if(closed)return;const d=Object.assign({},o,{_s:++seq,_f:me});if(dcOpen()){try{conn.send(d);via='direct';return;}catch(e){}}
-      if(partner){via='relay';rq.push(d);pump();}},
-    get open(){return !closed&&(dcOpen()||(opened&&relayLive()));},get via(){return via;},
+      /* a goodbye is sent as the page unloads: it cannot wait for the pacing timer (mid-game the queue is always paced), so it goes out at once with whatever is queued */
+      if(partner){via='relay';rq.push(d);if(d.t==='bye')flushRelay();else pump();}},
+    get open(){return !closed&&(dcOpen()||(opened&&relayLive()));},get via(){return via;},get direct(){return dcOpen();},get heard(){return heard;},
     close(){if(closed&&!brokers.length&&!peer)return;flushRelay();closed=true;clearTimeout(timer);
       for(const b of brokers){if(!b.up)continue;if(isHost)b.pub(base()+'/host','',1);if(partner)b.pub(base()+'/'+(isHost?partner:'h'),JSON.stringify({k:'gone',f:me}));b.close();}brokers.length=0;
       try{if(conn)conn.close();}catch(e){}try{if(peer)peer.destroy();}catch(e){}conn=null;peer=null;}};
