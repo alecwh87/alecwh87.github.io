@@ -298,6 +298,16 @@ body.typing .ctl{opacity:.45} body.typing .ctl:hover{opacity:1}
 @keyframes qpop{0%{transform:scale(.4);background:transparent}60%{transform:scale(1.25)}100%{transform:none}}
 @keyframes qdraw{from{stroke-dashoffset:20}to{stroke-dashoffset:0}}
 @keyframes qglow{0%{box-shadow:0 0 0 1px var(--main),0 0 30px -6px var(--main)}100%{box-shadow:none}}
+.skilloffer{display:flex;gap:.8rem;align-items:center;justify-content:space-between;flex-wrap:wrap;width:100%;max-width:760px;margin:0 auto .9rem;padding:.8rem 1rem;border:1px solid var(--main);border-radius:12px;background:var(--card);font-family:var(--ui);font-size:.95rem;order:0;box-sizing:border-box}
+.skilloffer .skbtns{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap}
+.sk{display:flex;flex-direction:column;gap:.8rem}.sk h2{margin:0}.sk .lbl{color:var(--main);font-family:var(--ui);font-size:.8rem;letter-spacing:.08em;text-transform:uppercase}
+.sktext{font-size:1.45rem;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere;min-height:3.2rem;color:var(--sub);transition:background .2s}
+.sktext span.ok{color:var(--fg)}.sktext span.bad{color:var(--err);text-decoration:underline}.sktext span.cur{box-shadow:inset 2px 0 var(--main)}
+#sk-in{width:100%;box-sizing:border-box;font:inherit;font-size:1.2rem;padding:.7rem .9rem;border-radius:10px;border:1px solid var(--btnb);background:var(--bg);color:var(--fg)}#sk-in:focus{outline:none;border-color:var(--main)}
+.skdots{display:flex;gap:.4rem;justify-content:center}.skdots i{width:.55rem;height:.55rem;border-radius:50%;background:var(--btnb)}.skdots i.on{background:var(--main)}.skdots i.done{background:var(--ok,var(--main));opacity:.7}
+.skwait{font-family:var(--ui);font-size:2rem;text-align:center;padding:1.6rem 0;border-radius:12px;border:1px dashed var(--btnb);color:var(--sub);user-select:none;-webkit-user-select:none}
+#sk-card.go .skwait{background:var(--main);color:var(--bg);border-color:var(--main);font-weight:700;letter-spacing:.1em}#sk-card.go{border-color:var(--main)}
+.skres{display:grid;grid-template-columns:repeat(3,1fr);gap:.6rem}.skres>div{background:var(--bg);border:1px solid var(--btnb);border-radius:10px;padding:.7rem .5rem;text-align:center}.skres .v{font-family:var(--ui);font-size:1.6rem;font-weight:700}.skres .v small{font-size:.8rem;color:var(--sub);font-weight:400}
 #modal{position:fixed;inset:0;z-index:45;background:color-mix(in srgb,var(--bg) 72%,transparent);backdrop-filter:blur(3px);display:flex;align-items:flex-start;justify-content:center;padding:6vh 16px 2rem;overflow-y:auto;animation:mfade .2s ease-out}
 @keyframes mfade{from{opacity:0}}
 #modal .mcard{position:relative;width:100%;max-width:640px;background:var(--card);border:1px solid var(--btnb);border-radius:16px;padding:1.4rem 1.5rem;box-shadow:0 30px 80px -30px #000;animation:scrin .3s cubic-bezier(.2,.8,.2,1) backwards}
@@ -573,10 +583,10 @@ let touchEl=null;function touchInput(){if(touchEl)return touchEl;if(!(navigator.
    finishing margin per character, so a head start that was too small or too big closes in a race or two. */
 function skillOf(tests,anyBlock){const pick=a=>{const r=a.filter(t=>t&&t.wpm>0&&(t.acc==null||t.acc>=90)).slice(-10).map(t=>t.wpm).sort((x,y)=>x-y);if(r.length<3)return null;const m=r.length>>1;return {wpm:Math.round(r.length%2?r[m]:(r[m-1]+r[m])/2),n:r.length};};
   tests=tests||[];return pick(tests.filter(t=>t.b===undefined||t.b==='race'))||(anyBlock?pick(tests):null);}
-function speedOf(skill,target){return skill&&skill.wpm>0?{wpm:+skill.wpm,src:'measured',n:skill.n||0}:{wpm:+target||40,src:'target'};}
+function speedOf(skill,target){return skill&&skill.wpm>0?{wpm:+skill.wpm,src:skill.src==='skill'?'skill':'measured',n:skill.n||0}:{wpm:+target||40,src:'target'};}
 function fairHold(hostW,peerW,chars,adjPc){const base=12000*(1/peerW-1/hostW)*0.85;let h=(base+(adjPc||0))*chars;if(Math.abs(h)<300)h=0;return Math.round(Math.max(-8000,Math.min(8000,h)));}
 function fairAdjust(adjPc,marginMs,chars){return Math.max(-200,Math.min(200,(adjPc||0)-0.7*marginMs/Math.max(20,chars)));}
-function fairWho(who,x){return x.src==='game'?who+' speed in your last game together: '+x.wpm+' wpm':x.src==='measured'?who+' last '+x.n+' races: '+x.wpm+' wpm':who+' target '+x.wpm+' wpm (fewer than 3 races yet)';}
+function fairWho(who,x){return x.src==='game'?who+' speed in your last game together: '+x.wpm+' wpm':x.src==='measured'?who+' last '+x.n+' races: '+x.wpm+' wpm':x.src==='skill'?who+' skill profile: '+x.wpm+' wpm':who+' target '+x.wpm+' wpm (fewer than 3 races yet)';}
 const touchFocused=()=>!!touchEl&&document.activeElement===touchEl;
 function screenFlash(color){let el=document.getElementById('rsflash');if(!el){el=document.createElement('div');el.id='rsflash';document.body.appendChild(el);}el.style.setProperty('--fc',color);el.classList.remove('on');void el.offsetWidth;el.classList.add('on');}
 /* ---- replay chart: progress over time for every racer ---- */
@@ -846,7 +856,7 @@ let LINK=null,SYNC=null,PEER={name:'friend',ready:false,fin:null};let IS_HOST=fa
 let track=null;
 /* ---- home ---- */
 function applyTheme(){document.documentElement.setAttribute('data-theme',db.theme||'black');}
-function renderHome(){$('#tgt').textContent=db.target;const n=db.tests.length,w=db.tests.filter(t=>t.pass).length,g=db.tests.filter(t=>t.vs&&t.vs.ghost!=null),gw=g.filter(t=>t.vs.ghost).length;
+function renderHome(){skillOffer();$('#tgt').textContent=db.target;const n=db.tests.length,w=db.tests.filter(t=>t.pass).length,g=db.tests.filter(t=>t.vs&&t.vs.ghost!=null),gw=g.filter(t=>t.vs.ghost).length;
   $('#stats').innerHTML=n?'<div><div class="lbl">races</div><div class="v">'+n+'</div></div><div><div class="lbl">pacer beaten</div><div class="v">'+r0(100*w/n)+'%</div></div>'+(g.length?'<div><div class="lbl">ghost beaten</div><div class="v">'+r0(100*gw/g.length)+'%</div></div>':'')+'<div><div class="lbl">best</div><div class="v">'+r0(db.best)+' wpm</div></div>'+(db.live.w+db.live.l?'<div><div class="lbl">live record</div><div class="v">'+db.live.w+' – '+db.live.l+'</div></div>':'')+(db.streak>1?'<div><div class="lbl">streak</div><div class="v streak">'+db.streak+'</div></div>':''):'<span class="sub">First race sets your pace. The pacer starts at '+db.target+' wpm; set it near your usual speed.</span>';
   $('#b-sound').textContent=RACE.sfx.on?'sound on':'sound off';$('#name').value=db.name||'';
   const tr=RACE.tier(db.target);$('#tier').textContent=tr.label;$('#tier').style.setProperty('--tc',tr.color);$('#tier').title=tr.next?'next: '+RACE.TIERS.find(x=>x[1]===tr.next)[0]+' at '+tr.next+' wpm':'top tier';
@@ -956,7 +966,7 @@ function finish(){if(!T||T.state==='done')return;T.ended=performance.now();T.sta
   if(!T.live&&pass&&!nore){const t0=RACE.tier(T.target),t1=RACE.tier(db.target);if(t1.idx>t0.idx){T.badges.push('tier up: '+t1.label);T.tierUp=t1;}}
   rec.badges=T.badges.slice();if(T.live){T.myFin.badges=T.badges.slice();if(LINK)LINK.send({t:'fin',...T.myFin});}
   if(!nore){db.tests.push(rec);if(db.tests.length>1500)db.tests=db.tests.slice(-1500);}save();
-  if(!nore)hubRace(rec,{live:T.live,pass,pb,ghostBeat,tierUp:T.tierUp,daily:T.daily,wpm,acc});
+  if(!nore)hubRace(rec,{live:T.live,pass,pb,ghostBeat,tierUp:T.tierUp,daily:T.daily,wpm,acc,full});
   showResults({rec,ms,wpm,acc,pass,rank,deltas,note,pb,floorOk});if(T.live&&PEER.fin)settleLive();}
 function fmtDelta(d){const s=Math.abs(d)/1000;return (d<=0?'−':'+')+(s<10?s.toFixed(2):s.toFixed(1))+' s';}
 function peerAbs(){return PEER.fin?(PEER.fin.abs!=null?PEER.fin.abs:PEER.fin.ms):null;}
@@ -1029,7 +1039,7 @@ function wireLink(){SYNC=RACE.Sync();
   return {
     onReady(code){if(RECON)return;lobby('<h2>Your race code</h2><div class="code" id="code">'+code+'</div><p class="sub">Send the code and this page’s link. <button class="link" id="b-copy">copy an invite link</button></p><p class="sub"><span class="dot"></span>waiting for a friend to join…</p><p><button id="b-cancel">cancel</button></p>');
       $('#b-cancel').onclick=()=>{leaveLive();};$('#b-copy').onclick=()=>{const url=location.href.split('#')[0]+'#join='+code;const done=()=>toast('Invite link copied.');if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(done,()=>prompt('Copy this link',url));else prompt('Copy this link',url);};},
-    onOpen(){const rc=!!RECON;if(!rc){MATCH={me:0,peer:0};PICK=null;}LINK.send({t:'hi',name:(db.name||'').trim(),target:db.target,games:GAMEIDS(),skill:RACE.skillOf(db.tests)});if(!IS_HOST)SYNC.ping(LINK);
+    onOpen(){const rc=!!RECON;if(!rc){MATCH={me:0,peer:0};PICK=null;}LINK.send({t:'hi',name:(db.name||'').trim(),target:db.target,games:GAMEIDS(),skill:mySkill()});if(!IS_HOST)SYNC.ping(LINK);
       db.lastRoom={code:LIVECODE,peer:PEER.name,host:IS_HOST,t:Date.now()};save();
       roomUI();RACE.sfx.finish();if(rc)reconDone();sessSave();if(IS_HOST&&NIGHT&&!NIGHT.over)LINK.send(nightMsg());paintRoom();},
     onData(d){switch(d.t){
@@ -1078,7 +1088,7 @@ $('#m-join').onclick=()=>{if(inRoom()){goHome();toast('You are already in a room
 function readHash(){{const m=/^#([a-z]+)\b/.exec(location.hash);if(m&&m[1]!=='race'&&GAMEIDS().includes(m[1]))setTab(m[1]);}const g=RACE.parseHash(location.hash);if(g){const q=quoteByHash(g.h);if(q){FRIEND=g;$('#ghostnote').hidden=false;$('#ghostnote').innerHTML=esc(g.name||'A friend')+' sent a ghost at '+r0(g.wpm)+' wpm. <button class="link" id="b-ghost">race it now</button>';$('#b-ghost').onclick=()=>{db.sameTx=0;T=null;setup(q);};}else{toast('That ghost link is from a different quote list.');}}
   const j=RACE.parseJoin(location.hash);if(j){join(j);}}
 window.addEventListener('beforeunload',()=>{if(LINK){sessSave();LINK.send({t:'bye',reload:1});}});
-window.PR={get XG(){return XG;},fairNow,fairTurf,fairMeasured,get FAIR(){return FAIR;},get TURF(){return TURF;},get GAME(){return GAME;},setTab,get db(){return db;},get T(){return T;},setup,finish,startSolo,host,join,goHome,QUOTES,get LINK(){return LINK;},get PEER(){return PEER;},hostStart,get NIGHT(){return NIGHT;},get LASTNIGHT(){return LASTNIGHT;},get RECON(){return RECON;},get MATCH(){return MATCH;},get SUG(){return SUG;},get NEXTG(){return NEXTG;},get IS_HOST(){return IS_HOST;},hubTick,openProfile,renderQuests,questsFor,lvOf,leaveLive,leaveRoom,roomUI,pickGame,pickReady,get PICK(){return PICK;},inRoom,dropForfeit,get TUT(){return TUT;},get MAXWPM(){return MAXWPM;}};
+window.PR={get XG(){return XG;},fairNow,fairTurf,fairMeasured,get FAIR(){return FAIR;},get TURF(){return TURF;},get GAME(){return GAME;},setTab,get db(){return db;},get T(){return T;},setup,finish,startSolo,host,join,goHome,QUOTES,get LINK(){return LINK;},get PEER(){return PEER;},hostStart,get NIGHT(){return NIGHT;},get LASTNIGHT(){return LASTNIGHT;},get RECON(){return RECON;},get MATCH(){return MATCH;},get SUG(){return SUG;},get NEXTG(){return NEXTG;},get IS_HOST(){return IS_HOST;},hubTick,openProfile,renderQuests,questsFor,lvOf,leaveLive,leaveRoom,roomUI,pickGame,pickReady,get PICK(){return PICK;},inRoom,dropForfeit,get TUT(){return TUT;},get MAXWPM(){return MAXWPM;},get TUT_ON(){return TUT_ON;},skillCheck};
 function demo(){const el=$('#demo');if(!el)return;const tk=RACE.Track(el);tk.setPlayers([{id:'a',kind:'me',name:myName()},{id:'f',kind:'friend',name:'friend'},{id:'g',kind:'ghost',name:'your ghost'},{id:'p',kind:'pacer',name:'pacer'}]);el.classList.remove('counting');el.classList.add('racing');const t0=performance.now();
   (function f(){if(!$('#home').hidden){const t=((performance.now()-t0)%8000)/6500;const k=Math.min(1,t);const e=x=>Math.min(1,Math.max(0,x));const base=db.target||40;
     const pa=e(k*(0.9+0.16*k)+0.012*Math.sin(t*17)),pf=e(k*(1.02-0.05*k)+0.01*Math.sin(t*11+1)),pg=e(k*0.985+0.008*Math.sin(t*7)),pp=e(k*0.97);
@@ -1098,6 +1108,62 @@ function award(g,xp,label,quiet){if(TUT_ON){const p0=pdb();return {xp:p0.xp,lv:l
   return {xp:p.xp,lv:after,up:after>before};}
 window.PROFILE={award,get(){const p=pdb();const L=lvOf(p.xp);return {xp:p.xp,level:L.lv,next:L.next,into:L.into,span:L.span,games:JSON.parse(JSON.stringify(p.games)),log:p.log.slice(),ach:Object.assign({},p.ach),quests:questsNow()};},
   quests:d=>questsFor(d||RACE.dayKey()).map(q=>q.id),event:e=>hubEvent(e),achievements:()=>achList().map(a=>({id:a.id,name:a.n,how:a.h,got:!!pdb().ach[a.id]})),open:()=>openProfile()};
+/* ---- skill profile: one measure of how you type, read by every game (window.SKILL). The skill check seeds it; finished games keep it learning ---- */
+const SK_DEF={wpm:40,acc:95,react:320};
+function sdb(){const s=db.skill;return s&&typeof s==='object'&&s.wpm>0?s:null;}
+function skillLine(){const s=SKILL.get();return s.source==='default'?'not taken yet: games start at 40 wpm':'about '+s.wpm+' wpm, '+Math.round(s.acc)+'% accurate, '+s.react+' ms reaction'+(s.source==='games'?', learned from '+s.n+' game'+(s.n===1?'':'s'):'');}
+window.SKILL={
+  get(){const s=sdb();if(!s)return Object.assign({},SK_DEF,{source:'default',n:0});return {wpm:Math.round(s.wpm),acc:Math.round((s.acc>0?s.acc:SK_DEF.acc)*10)/10,react:Math.round(s.react>0?s.react:SK_DEF.react),source:s.test&&!(s.n>=3)?'test':'games',n:s.n||0};},
+  /* a weighted moving average that favours recent play; nothing moves while a tutorial (sandbox) runs */
+  update(game,o){o=o||{};const wpm=+o.wpm,acc=o.acc==null?null:+o.acc;if(TUT_ON||!(wpm>=5&&wpm<=250))return SKILL.get();
+    const s=sdb();if(!s)db.skill={wpm:r1(wpm),acc:acc==null?SK_DEF.acc:r1(acc),react:0,n:1,test:0,t:Date.now(),g:String(game||'').slice(0,16)};
+    else{const a=s.n<3?0.4:0.25;s.wpm=r1(s.wpm+(wpm-s.wpm)*a);if(acc!=null)s.acc=r1((s.acc>0?s.acc:SK_DEF.acc)+(acc-(s.acc>0?s.acc:SK_DEF.acc))*a);s.n=(s.n||0)+1;s.t=Date.now();s.g=String(game||'').slice(0,16);}
+    save();skillOffer();return SKILL.get();},
+  check:()=>skillCheck()};
+/* a race record (fewer than 3 races) falls back to the skill profile, so the fair start works from the first live game */
+function mySkill(){const m=RACE.skillOf(db.tests);if(m)return m;const s=SKILL.get();return s.source==='default'?null:{wpm:s.wpm,n:s.n,src:'skill'};}
+/* first visit: a card at the top of home offers the check; skip keeps the defaults; it goes once a profile exists */
+function skillOffer(){const h=$('#home');if(!h)return;let el=$('#skilloffer');const show=!sdb()&&!db.skillSkip&&!LINK&&!inRoom();
+  if(!show){if(el)el.remove();return;}if(el)return;
+  el=document.createElement('div');el.id='skilloffer';el.className='skilloffer';
+  el.innerHTML='<div><b>New here?</b> Take the one minute skill check: a few words, one sentence, one quick reaction. Every game then starts at your level.</div><div class="skbtns"><button class="cta small" id="sk-go">skill check</button><button class="link" id="sk-skip">skip, start at 40 wpm</button></div>';
+  h.prepend(el);$('#sk-go').onclick=()=>skillCheck();$('#sk-skip').onclick=()=>{db.skillSkip=1;save();skillOffer();toast('Starting at 40 wpm. The skill check is in Options whenever you want it.',3500);};}
+const SK_WORDS='the and for you that with this have from they will what about which when make like time just know take into year good some them see other than then now look only come over think also back after work first well even new want because any these give day most'.split(' ');
+const SK_LINES=['Well, that was quick. Ready for one more?','Nice and steady wins, most days.','Take a breath; the hard part is done.','Good hands. Now keep them warm, please.'];
+let SK=null;
+function skillCheck(){if(T||PGAMES().some(g=>g.S)){stopPG();goHome();}$('#lobby').hidden=true;
+  const a=SK_WORDS.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}
+  SK={stage:0,texts:[a.slice(0,8).join(' '),SK_LINES[Math.floor(Math.random()*SK_LINES.length)]],typed:'',ms:0,chars:0,keys:0,ok:0,t0:0,react:null,arm:0,early:0,tm:0};
+  openModal('<div class="sk"><div class="lbl">skill check</div><h2 id="sk-h"></h2><p class="sub" id="sk-sub" style="margin:0"></p><div class="sktext" id="sk-text"></div><input id="sk-in" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false" aria-label="type here" placeholder="type here"><div class="skdots" id="sk-dots"></div></div>','sk-card');
+  skStage(0);}
+function skStage(n){SK.stage=n;SK.typed='';SK.t0=0;const inp=$('#sk-in');if(!inp)return;inp.value='';
+  $('#sk-h').textContent=n?'Now one sentence':'Type these words';$('#sk-sub').textContent=n?'Capitals and punctuation count. A slip is fine: fix it and carry on.':'Eight everyday words, one space between them, at your normal pace. The clock starts on your first key.';
+  $('#sk-dots').innerHTML=[0,1,2].map(i=>'<i class="'+(i<n?'done':i===n?'on':'')+'"></i>').join('');skPaint();
+  inp.oninput=()=>skInput(inp,SK.texts[n]);try{inp.focus({preventScroll:true});}catch(e){inp.focus();}}
+function skPaint(){const tx=SK.texts[SK.stage],v=SK.typed;const el=$('#sk-text');if(!el)return;let h='';for(let i=0;i<tx.length;i++){const cls=i<v.length?(v[i]===tx[i]?'ok':'bad'):i===v.length?'cur':'';h+='<span class="'+cls+'">'+esc(tx[i])+'</span>';}el.innerHTML=h;}
+function skInput(inp,tx){let v=inp.value;const prev=SK.typed;if(!SK.t0)SK.t0=performance.now();
+  if(v.length>tx.length+3)v=inp.value=v.slice(0,tx.length+3);
+  if(v.length>prev.length){for(let i=prev.length;i<v.length;i++){SK.keys++;if(v[i]===tx[i])SK.ok++;}if(v[v.length-1]===tx[v.length-1])RACE.sfx.key();else RACE.sfx.err();}
+  SK.typed=v;skPaint();
+  if(v===tx){SK.ms+=performance.now()-SK.t0;SK.chars+=tx.length;inp.oninput=null;RACE.sfx.callout();setTimeout(()=>{if($('#sk-card'))SK.stage===0?skStage(1):skReact();},350);}}
+function skReact(){const card=$('#sk-card');if(!card)return;const inp=$('#sk-in');if(inp){inp.oninput=null;inp.blur();inp.hidden=true;}
+  $('#sk-h').textContent='One quick reaction';$('#sk-sub').textContent='Wait for the card to turn brass, then press space or tap it. Not before.';$('#sk-text').innerHTML='<div class="skwait" id="sk-wait">wait for it</div>';$('#sk-dots').innerHTML='<i class="done"></i><i class="done"></i><i class="on"></i>';
+  card.classList.remove('go');SK.arm=0;clearTimeout(SK.tm);
+  SK.tm=setTimeout(()=>{if(!$('#sk-card'))return;SK.arm=performance.now();card.classList.add('go');$('#sk-wait').textContent='NOW';RACE.sfx.up();},1400+Math.random()*1800);
+  const off=()=>{window.removeEventListener('keydown',hit,true);card.removeEventListener('pointerdown',hit);};
+  const hit=e=>{if(!$('#sk-card')||SK.react!=null){off();return;}if(e.type==='keydown'){if(e.key!==' ')return;e.preventDefault();e.stopImmediatePropagation();}else if(e.target.closest('#m-x'))return;
+    if(!SK.arm){clearTimeout(SK.tm);SK.early++;$('#sk-wait').textContent='too soon, once more';RACE.sfx.err();off();setTimeout(()=>{if($('#sk-card'))skReact();},900);return;}
+    SK.react=Math.round(performance.now()-SK.arm);off();skDone();};
+  window.addEventListener('keydown',hit,true);card.addEventListener('pointerdown',hit);}
+function skDone(){const wpm=Math.max(1,Math.min(250,SK.chars/5/(Math.max(1,SK.ms)/60000)));const acc=SK.keys?100*SK.ok/SK.keys:100;const react=SK.react;
+  db.skill={wpm:r1(wpm),acc:r1(acc),react,n:0,test:1,t:Date.now()};const set=[];
+  if(!db.tests.length){db.target=Math.max(10,Math.min(200,Math.round(wpm*0.95)));db.sameTx=0;set.push('the pacer at '+db.target+' wpm');}
+  if(db.turf&&Array.isArray(db.turf.games)&&!db.turf.games.length){db.turf.bot=Math.max(15,Math.round(wpm*0.95));set.push('the Word Turf bot at '+db.turf.bot+' wpm');}
+  delete db.skillSkip;save();skillOffer();renderHome();
+  const card=$('#sk-card');if(!card)return;card.classList.remove('go');
+  card.querySelector('.sk').innerHTML='<div class="lbl">skill check</div><h2>About '+r0(wpm)+' wpm, '+r0(acc)+'% accurate</h2><div class="skres"><div><div class="lbl">speed</div><div class="v">'+r0(wpm)+'<small> wpm</small></div></div><div><div class="lbl">accuracy</div><div class="v">'+r0(acc)+'<small>%</small></div></div><div><div class="lbl">reaction</div><div class="v">'+react+'<small> ms</small></div></div></div>'+
+   '<p class="sub" style="margin:0">'+(set.length?'That sets '+set.join(' and ')+'; the other games read the same profile.':'Your profile is updated and every game reads it.')+' Each finished game keeps it learning, and you can retake this from Options.</p><p class="row" style="margin:0"><button class="cta" id="sk-play">play</button></p>';
+  $('#sk-play').onclick=closeModal;RACE.sfx.win();}
 function xpToast(head,label,cls){const box=$('#xpt');if(!box)return;if(cls==='ach'){const A=xpToast.ach;if(A&&A.isConnected&&Date.now()-A._t<1500&&!A.classList.contains('out')){A._n.push(label.replace(/ \+25 xp$/,''));A.innerHTML='<b>'+A._n.length+' achievements: </b>'+esc(A._n.join(', '))+' +'+25*A._n.length+' xp';return;}}
   const m=/^\+(\d+) xp: $/.exec(head);const L=xpToast.last;
   if(m&&!cls&&L&&L.isConnected&&Date.now()-L._t<900&&!L.classList.contains('out')){L._xp+=+m[1];L._labels.push(label);L.innerHTML='<b>+'+L._xp+' xp: </b>'+esc(L._labels.slice(0,3).join(', ')+(L._labels.length>3?' and more':''));return;}
@@ -1175,7 +1241,7 @@ function achCheck(e){const p=pdb();for(const a of achList()){if(p.ach[a.id])cont
   p.ach[a.id]=Date.now();save();xpToast('achievement: ',a.n+' +25 xp','ach');award(a.g||'misc',25,'achievement: '+a.n,true);}}
 function played(id){if(id==='race')return db.tests.length>0;const d=db[id];return !!(d&&Array.isArray(d.games)&&d.games.length)||!!(pdb().games[id]&&pdb().games[id].n);}
 /* ---- game ends: Pace Race calls these directly; Word Turf and the extra games are watched through their state (S.res when S.state is 'done') ---- */
-function hubRace(rec,o){const live=!!o.live;award('race',10+Math.round(o.wpm/10),'race finished');if(!live&&o.pass)award('race',15,'beat the pacer');if(o.pb)award('race',25,'personal best');else if(o.ghostBeat)award('race',10,'beat your ghost');if((rec.badges||[]).includes('perfect race'))award('race',10,'perfect race');if(o.tierUp)award('race',30,'tier up: '+o.tierUp.label);if(o.daily)award('race',10,'today’s quote');
+function hubRace(rec,o){const live=!!o.live;if(o.full!==false)SKILL.update('race',{wpm:o.wpm,acc:o.acc});award('race',10+Math.round(o.wpm/10),'race finished');if(!live&&o.pass)award('race',15,'beat the pacer');if(o.pb)award('race',25,'personal best');else if(o.ghostBeat)award('race',10,'beat your ghost');if((rec.badges||[]).includes('perfect race'))award('race',10,'perfect race');if(o.tierUp)award('race',30,'tier up: '+o.tierUp.label);if(o.daily)award('race',10,'today’s quote');
   const G=pg('race');G.n++;if(!live&&o.pass)G.w++;save();hubEvent({k:'end',g:'race',win:!live&&!!o.pass,live,acc:o.acc,badges:rec.badges||[],pass:!!o.pass});renderCardsInfo();}
 function hubLive(g,win){award(g,win?30:8,win?'live win':'live race');if(win){pg(g).w++;save();}hubEvent({k:'live',g,win:!!win,live:true});if(IS_HOST)nightResult(g,win?'h':'j');}
 const SEEN=new WeakMap(),ENDED=new WeakSet();
@@ -1193,7 +1259,7 @@ function gameEnded(g,S,seen){const id=g.id,r=S.res;const live=!!S.live,bot=!!S.b
   const now1=snapOf(id),delta={};for(const k in now1)delta[k]=now1[k]-(seen.snap[k]||0);
   const ev={k:'end',g:id,win,draw,live,bot,delta};if(id==='turf'&&S.st){ev.lines=S.st.lines||0;ev.steals=S.st.steals||0;}if(id==='sonar')ev.silent=win&&!!(S.hl&&/silent/.test(S.hl.kill||''));if(id==='still')ev.moon=+S.moonN||0;
   const G=pg(id);G.n++;if(win)G.w++;save();
-  if(id==='turf'){award('turf',12,'Word Turf game');if(win)award('turf',live?30:20,live?'live win':'beat the bot');if(ev.lines)award('turf',8*ev.lines,ev.lines>1?ev.lines+' Word Turf lines':'Word Turf line');}
+  if(id==='turf'){if(!S.forfeit&&S.st&&S.st.chars>=25){const mins=Math.max(1,S.end-Math.max(S.start,S.hold[S.me]))/60000;SKILL.update('turf',{wpm:S.st.chars/5/mins,acc:S.st.keys?100*S.st.ok/S.st.keys:100});}award('turf',12,'Word Turf game');if(win)award('turf',live?30:20,live?'live win':'beat the bot');if(ev.lines)award('turf',8*ev.lines,ev.lines>1?ev.lines+' Word Turf lines':'Word Turf line');}
   else if(!(LASTAW[id]>=seen.t)){award(id,10,gameTitle(id)+' game');if(win)award(id,live?30:20,live?'live win':'win');}
   hubEvent(ev);if(live&&IS_HOST)nightResult(id,win?'h':draw?'d':'j');renderCardsInfo();}
 /* ---- home: game cards with a small live preview ---- */
@@ -5782,7 +5848,7 @@ let FAIR={link:null,adj:0,races:0,mw:null,tw:null};
 function fairState(){if(FAIR.link!==LINK)FAIR={link:LINK,adj:0,races:0,mw:null,tw:null};return FAIR;}
 /* speeds you both actually typed in this match (k: 'mw' races, 'tw' Word Turf), averaged with the game before; they beat any guess from history */
 function fairMeasured(k,me,pe){fairState();me=+me;pe=+pe;if(!(me>0&&pe>0))return;const o=FAIR[k];FAIR[k]=o?{me:(o.me+me)/2,pe:(o.pe+pe)/2}:{me,pe};}
-function fairSpeeds(k){fairState();const m=FAIR[k||'mw']||FAIR.mw;if(m)return {me:{wpm:Math.round(m.me),src:'game'},pe:{wpm:Math.round(m.pe),src:'game'}};return {me:RACE.speedOf(RACE.skillOf(db.tests),db.target),pe:RACE.speedOf(PEER.skill,PEER.target||40)};}
+function fairSpeeds(k){fairState();const m=FAIR[k||'mw']||FAIR.mw;if(m)return {me:{wpm:Math.round(m.me),src:'game'},pe:{wpm:Math.round(m.pe),src:'game'}};return {me:RACE.speedOf(mySkill(),db.target),pe:RACE.speedOf(PEER.skill,PEER.target||40)};}
 function fairNow(chars){const {me,pe}=fairSpeeds('mw');return {me,pe,h:RACE.fairHold(me.wpm,pe.wpm,chars,FAIR.adj)};}
 const fairSays=(h,tail)=>h>0?'you wait '+(h/1000).toFixed(1)+' s'+tail:h<0?esc(PEER.name)+' waits '+(-h/1000).toFixed(1)+' s'+tail:'level start';
 function fairText(){const f=fairNow(200);return 'Fair start: '+RACE.fairWho('your',f.me)+'; '+RACE.fairWho(esc(PEER.name)+'’s',f.pe)+'. So '+fairSays(f.h,' on an average quote')+(Math.abs(f.h)>=8000?' (the most anyone waits is 8 s, so nobody stands still for half the race)':'')+'. After each race it switches to the speeds you both actually typed, so the next start is fairer.';}
@@ -5836,6 +5902,7 @@ function openOptions(){if((T&&T.live&&T.state!=='done')||PGAMES().some(g=>g.play
    '<div class="orow"><span>race quote length</span>'+seg('o-qlen',db.qlen||'any',[['short','short'],['medium','medium'],['long','long'],['any','any']])+'</div>'+
    '<div class="orow"><span>Word Turf game length</span>'+seg('o-tdur',db.turfDur||75000,[[45000,'45 s'],[75000,'75 s'],[120000,'2 min']])+'</div>'+
    '<div class="orow"><span>fair start (live)</span>'+seg('o-hcap',HCAP?1:0,[[1,'on'],[0,'off']])+'<span class="sub" style="font-size:.85rem">the faster typist waits a little at the start</span></div>'+
+   '<div class="orow"><span>skill check</span><button id="o-skill">'+(sdb()?'retake':'take it')+' (one minute)</button><span class="sub" style="font-size:.85rem">'+skillLine()+'</span></div>'+
    '<div class="orow"><span>sound</span>'+seg('o-snd',RACE.sfx.on?1:0,[[1,'on'],[0,'off']])+'</div>'+
    '<div class="orow"><span>reset</span><button class="danger" id="o-rrace">reset race progress</button><button class="danger" id="o-rturf">reset Word Turf record</button><button class="danger" id="o-rprof">reset level and quests</button></div>'+
    '<p class="sub" style="margin:0;font-size:.85rem">Race reset: pacer back to 40 wpm, history, ghosts and live record cleared. Word Turf reset: bot back to your pacer speed, record cleared.</p>'+
@@ -5843,7 +5910,7 @@ function openOptions(){if((T&&T.live&&T.state!=='done')||PGAMES().some(g=>g.play
    '<div><button id="b-cancel">done</button></div></div>';
   lobby(h);XG.forEach(g=>{if(g.wireOpts)g.wireOpts(openOptions);});
   const wire=(id,fn)=>$('#'+id).querySelectorAll('button').forEach(b=>b.onclick=()=>{$('#'+id).querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));fn(b.dataset.v);save();renderHome();});
-  wire('o-qlen',v=>{db.qlen=v;});wire('o-tdur',v=>{db.turfDur=+v;TURF.cfg.dur=+v;});wire('o-hcap',v=>{HCAP=v==='1';db.hcap=HCAP;});wire('o-snd',v=>{RACE.sfx.set(v==='1');});
+  wire('o-qlen',v=>{db.qlen=v;});wire('o-tdur',v=>{db.turfDur=+v;TURF.cfg.dur=+v;});wire('o-hcap',v=>{HCAP=v==='1';db.hcap=HCAP;});wire('o-snd',v=>{RACE.sfx.set(v==='1');});$('#o-skill').onclick=()=>{if(inRoom())roomUI();else $('#lobby').hidden=true;skillCheck();};
   $('#o-rrace').onclick=e=>twoStep(e.currentTarget,'click again to reset the race',()=>{Object.assign(db,{tests:[],ghosts:{},target:40,sameTx:0,streak:0,best:0,live:{w:0,l:0}});save();renderHome();toast('Race progress reset.');openOptions();});
   $('#o-rturf').onclick=e=>twoStep(e.currentTarget,'click again to reset Word Turf',()=>{db.turf=null;save();TURF.tdb();save();renderHome();if(GAME==='turf')renderTurfHome();toast('Word Turf record reset.');openOptions();});
   $('#o-rprof').onclick=e=>twoStep(e.currentTarget,'click again to reset your level',()=>{db.profile=null;save();paintBadge();renderHome();toast('Level, xp, achievements and quests reset.');openOptions();});
