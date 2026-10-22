@@ -184,7 +184,7 @@ tr.dim td{color:var(--sub)}
   <div class="brand"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1zm1 2v2h2V8H4zm3 0v2h2V8H7zm3 0v2h2V8h-2zm3 0v2h2V8h-2zm3 0v2h2V8h-2zM4 11v2h3v-2H4zm4 0v2h2v-2H8zm3 0v2h2v-2h-2zm3 0v2h2v-2h-2zm3 0v2h3v-2h-3zM4 14v2h2v-2H4zm3 0v2h10v-2H7zm11 0v2h2v-2h-2z"/></svg><span>typing<b>coach</b></span></div>
   <nav>
     <button data-view="train" class="on">train</button>
-    <button id="nav-race" title="Pace Race: beat the pacer, your ghost, or a friend live">race</button>
+    <button id="nav-games" title="Pace Race, Word Turf and the other games" onclick="location.href='index.html'">games</button>
     <button data-view="progress">progress</button>
     <button data-view="settings">settings</button>
     <button data-view="about">why</button>
@@ -204,14 +204,13 @@ tr.dim td{color:var(--sub)}
         <button class="cta" id="b-session">Start today's session</button>
         <button class="cta" id="b-resume" hidden style="margin-left:.5rem">Resume today's session</button>
         <div class="sub" style="margin-top:.5rem" id="i-ctasub">about 25 minutes &nbsp;·&nbsp; <span class="kbd">Enter</span></div>
-        <button id="b-race-cta" class="racecta">Pace Race <span>beat the pacer, your ghost, or a friend live</span></button>
+        <button id="b-games-cta" class="racecta" onclick="location.href='index.html'">Play the games <span>Pace Race, Word Turf, Type Tower and more</span></button>
       </div>
       <div class="alt">
         <button class="link" id="b-short">short session, 10 min</button><span>·</span>
         <button class="link" id="b-bench">one real-text test</button><span>·</span>
         <button class="link" id="b-quick">one accuracy test</button><span>·</span>
         <button class="link" id="b-burst">one speed burst</button><span>·</span>
-        <button class="link" id="b-race">race: pacer, ghosts, a friend live</button><span>·</span>
         <button class="link" id="b-span">eye-hand span check, 1 min</button><span>·</span>
         <button class="link" id="b-blind">covered-hands check, 1 min</button>
       </div>
@@ -306,7 +305,6 @@ tr.dim td{color:var(--sub)}
         <div class="card wide"><h2>Shift on the home row</h2><div id="p-shift"></div></div>
         <div class="card wide"><div class="chead"><h2>Editing and navigation</h2><span class="sub">Time per move, smoothed. Under one second is automatic; over 2.5 seconds you are thinking about the keys.</span></div><div id="p-edit"></div></div>
         <div class="card"><div class="chead"><h2>Composing</h2><span class="sub">Writing to a prompt, no target text. Last 10 compose blocks.</span></div><div id="p-compose"></div></div>
-        <div class="card"><h2>Races</h2><div id="p-race"></div></div>
         <div class="card"><h2>Checks</h2><div id="p-checks"></div></div>
         <div class="card wide"><div class="chead"><h2>Woven into your text right now</h2><span class="sub">Keys, pairs and runs are placed in different real words at growing gaps and leave after two sessions near your median. Confusion pairs leave after twelve clean tests. Slow common words climb a four-box schedule (1, 2, 4, 8 days).</span></div><table id="targets"></table></div>
         <div class="card wide"><h2>Experiments</h2><div id="p-exp"></div></div>
@@ -978,7 +976,7 @@ function newTest(block){
   cum=[];let c=0;toks.forEach(w=>{c+=w.length+1;cum.push(c);});
   document.body.classList.remove('typing');
   $('#results').hidden=true;$('#testcard').hidden=false;
-  T.paceWpm=block.pace?db.target:(session&&session.paceAcc&&block.id==='acc'?session.paceAcc:null);
+  T.paceWpm=block.pace?db.target:(block.id==='acc'?accCeil():null);
   $('#t-mode').textContent=block.name.toLowerCase()+(T.timed?' · '+block.dur+' seconds':' · the whole quote')+' · '+(block.stop==='word'?'an error stops the word':'errors allowed');setInstr(block);
   $('#t-target').textContent=block.id==='blind'?(session&&session.ti===1?'now put a towel over your hands, then type':'hands uncovered first'):block.id==='span'?(session?session.ti:0)+' word'+((session?session.ti:0)===1?'':'s')+' of preview':block.pace?('target '+db.target+' raw wpm'+((db.sameTx||0)?' \u00b7 same text, try '+((db.sameTx||0)+1):'')):T.paceWpm?('pace line at '+T.paceWpm+' wpm, stay with it'):(block.id==='bench'?'unaltered text, this is the score':block.id==='code'?'symbol layers':'accuracy goal '+S().accGoal+'%');
   if(block.id==='warm'&&db.blind&&db.blind.looks&&Date.now()<db.blind.t+14*86400000)$('#t-target').textContent='cover your hands for this one';
@@ -1091,7 +1089,7 @@ function commit(m){const s=S();
   if(T.block.id==='speed'){if(db.target==null)db.target=initialTarget();rec.target=db.target;rec.pass=m.raw>=db.target&&m.acc>=s.speedAcc;rec.try=(db.sameTx||0)+1;
     if(rec.pass){const first=!(db.sameTx);db.passStreak++;db.failStreak=0;db.sameTx=0;db.target+=first?s.targetStep:1;rec.note='Target reached'+(first?'':' on try '+rec.try)+'. Next burst: new text at '+db.target+' wpm.';}
     else{db.failStreak++;db.passStreak=0;db.sameTx=(db.sameTx||0)+1;const why=m.acc<s.speedAcc?'Under '+s.speedAcc+'% accuracy, so no pass. ':r0(m.raw)+' raw against '+db.target+'. ';if(db.sameTx>=3){db.sameTx=0;db.target=Math.max(10,db.target-1);rec.note=why+'Three tries on this text: new text next, target lowered to '+db.target+' wpm.';}else{REPEAT=LAST_TX;rec.note=why+'The same text comes back'+(db.sameTx===2?' for a last try':'')+'; push harder on it.';}}}
-  if(T.block.id==='race')raceCommit(rec,m);
+  if(T.block.id==='race')raceCommit(rec,m);if(T.block.id==='acc'&&T.paceWpm)accCeilUpdate(rec);
   if(T.block.id==='blind'&&session)rec.cov=session.ti;
   if(T.block.id==='span'&&session)rec.preview=session.ti;
   db.tests.push(rec);if(db.tests.length>2500)db.tests=db.tests.slice(-2500);if(db.tests.length>900&&db.tests.length%50===0)compactOld();
@@ -1100,6 +1098,9 @@ function commit(m){const s=S();
 function compactOld(){const keep=new Set(['t','h','b','dur','wpm','raw','acc','ks','bs','pass','target','kspc','think','roll','cov','preview','try','q','ms','vs','rank','live','win','opp']);const cut=db.tests.length-800;for(let i=0;i<cut;i++){const t=db.tests[i];if(t._c)continue;for(const k in t)if(!keep.has(k))delete t[k];t._c=1;}}
 const BENCH='bench';
 function benchTests(){return db.tests.filter(t=>t.b===BENCH);}
+/* accuracy ceiling: a pace line in every accuracy test, set per person. It starts at 90% of your real-text average and walks to the fastest pace you can hold at 97%+ (up 2% after a clean test, down 3% under 95%). The pace A/B experiment still decides it while it runs. */
+function accCeil(){if(session&&session.expArm&&db.exp&&db.exp.name==='pace')return session.paceAcc||null;const l=last10();if(!l)return null;const c=db.accCeil||{f:0.9};return r0(c.f*l.wpm);}
+function accCeilUpdate(rec){const a=db.accCeil||{f:0.9,n:0};if(rec.acc>=97)a.f=Math.min(1.05,a.f+0.02);else if(rec.acc<95)a.f=Math.max(0.7,a.f-0.03);a.n=(a.n||0)+1;db.accCeil=a;}
 function last10(){const b=benchTests().slice(-10);return b.length?{wpm:mean(b.map(t=>t.wpm)),acc:mean(b.map(t=>t.acc)),raw:mean(b.map(t=>t.raw)),cons:mean(b.map(t=>t.cons)),sd:mean(b.map(t=>t.sd)),iki:mean(b.map(t=>t.iki)),n:b.length}:null;}
 function initialTarget(){const l=last10();if(l)return r0(l.raw+3);const any=db.tests.filter(t=>!['speed','code','edit','compose','span'].includes(t.b)).slice(-5);if(any.length)return r0(mean(any.map(t=>t.raw||t.wpm))+3);return 40;}
 function refreshTarget(){const l=last10();if(!l){if(db.target==null)db.target=initialTarget();return;}const base=r0(l.raw+3);if(db.target==null||db.target<base){db.target=base;db.passStreak=0;db.failStreak=0;db.sameTx=0;}else if(db.target>l.raw+15){db.target=r0(l.raw+8);db.sameTx=0;}save();}
@@ -1244,7 +1245,7 @@ const INSTR={
  blind:['Two tests: hands uncovered, then with a towel over them.','Same words, same effort both times. If covering the hands costs you speed, you look at the keyboard.'],
 };
 function setInstr(block){const I=INSTR[block.id];if(!I)return;db.seen=db.seen||{};db.seen[block.id]=(db.seen[block.id]||0)+1;const full=db.seen[block.id]<=5;const f=[];
-  if(session){if(block.id==='acc'&&session.paceAcc)f.push('Today the underline is a ceiling at '+session.paceAcc+' wpm: stay behind it, accuracy first.');
+  if(block.id==='acc'&&T.paceWpm)f.push('The underline is your accuracy ceiling at '+T.paceWpm+' wpm, tuned to you: stay behind it, accuracy first.');if(session){
     if(block.stop==='word'&&block.id!=='bench'&&(S().readAhead||session.readAhead)&&!session.readAheadOff)f.push('The untyped letters of the current word are hidden: keep your eyes on the next word.');
     if(session.wordDelete&&block.stop==='word')f.push('Fix errors with Option+Backspace and retype the whole word.');
     if(block.id==='speed'&&session.rollWords)f.push('These words are full of rolls: let the second finger start before the first is up.');
@@ -1683,7 +1684,7 @@ function renderRaceCard(){const el=$('#p-race');if(!el)return;const rs=db.tests.
 function raceReadHash(){const g=RACE.parseHash(location.hash);if(g){const q=QUOTES.find(x=>RACE.textHash(x[0])===g.h);if(q){raceStoreGhost(g.h,'friend',{g:g.g,wpm:g.wpm,name:g.name||'friend',t:Date.now()});save();raceLobby();const L=$('#race-lobby');L.insertAdjacentHTML('afterbegin','<div class="banner">'+esc(g.name||'A friend')+' sent a ghost at '+r0(g.wpm)+' wpm. <button class="link" id="rl-ghost">race it now</button></div>');$('#rl-ghost').onclick=()=>raceStartSolo({words:q[0].split(' '),src:q[1],timed:false});}else raceToast('That ghost link is from a different quote list.');}
   const j=RACE.parseJoin(location.hash);if(j){raceLobby('connecting');raceJoin(j);}}
 function openRace(){if(view!=='train')showView('train');if(T&&!(T.race))return raceToast('Finish or end the current test first.');if(T&&T.race)return;$('#onboard').hidden=true;raceLobby();$('#race-lobby').scrollIntoView({behavior:'smooth',block:'center'});}
-$('#b-race').onclick=()=>{const L=$('#race-lobby');if(!L.hidden&&!RL.link){L.hidden=true;return;}openRace();};$('#b-race-cta').onclick=openRace;$('#nav-race').onclick=openRace;
+
 window.addEventListener('beforeunload',()=>{if(RL.link)RL.link.send({t:'bye'});});
 raceReadHash();
 window.TC={BLOCKS,PLANS,RL,raceStartSolo,raceStartLive,raceHost,raceJoin,raceLobby,get db(){return db;},get T(){return T;},get MY(){return MY;},refreshTargets,makeText,countChars,kogasa,errType,buildCorpus,keyRoute,expArm,expLine,GO60};
