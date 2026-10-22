@@ -977,7 +977,7 @@ function newTest(block){
   document.body.classList.remove('typing');
   $('#results').hidden=true;$('#testcard').hidden=false;
   T.paceWpm=block.pace?db.target:(block.id==='acc'?accCeil():null);
-  $('#t-mode').textContent=block.name.toLowerCase()+(T.timed?' · '+block.dur+' seconds':' · the whole quote')+' · '+(block.stop==='word'?'an error stops the word':'errors allowed');setInstr(block);
+  $('#t-mode').textContent=block.name.toLowerCase()+(T.timed?' · '+block.dur+' seconds':' · the whole quote')+' · '+(block.stop==='word'?'an error stops the word':block.id==='speed'?'errors allowed, Backspace off':'errors allowed');setInstr(block);
   $('#t-target').textContent=block.id==='blind'?(session&&session.ti===1?'now put a towel over your hands, then type':'hands uncovered first'):block.id==='span'?(session?session.ti:0)+' word'+((session?session.ti:0)===1?'':'s')+' of preview':block.pace?('target '+db.target+' raw wpm'+((db.sameTx||0)?' \u00b7 same text, try '+((db.sameTx||0)+1):'')):T.paceWpm?('pace line at '+T.paceWpm+' wpm, stay with it'):(block.id==='bench'?'unaltered text, this is the score':block.id==='code'?'symbol layers':'accuracy goal '+S().accGoal+'%');
   if(block.id==='warm'&&db.blind&&db.blind.looks&&Date.now()<db.blind.t+14*86400000)$('#t-target').textContent='cover your hands for this one';
   $('#t-timer').textContent=T.timed?block.dur:'';$('#l-acc').textContent='';$('#l-wpm').textContent='';$('#hint').textContent='type to start';$('#t-src').textContent=tx.mine?'from your own writing':'';
@@ -1234,7 +1234,7 @@ const INSTR={
  race:['Wait for GO, then race the markers above the text.','Type the quote exactly; an error stops the word until it is fixed. The hollow marker is the pacer at your target, the blue one your best run on this quote, the pink one a friend. Beat the pacer to move the target up; miss and the same quote comes back.'],
  warm:['Plain words to settle the hands.','Type at an easy speed and fix any error as it happens. Nothing here counts toward anything.'],
  acc:['Type exactly what you see, capitals and punctuation included.','A wrong letter stops the word: Backspace until it is gone (Option+Backspace clears the whole word), retype, keep going. Hold your accuracy goal without crawling. Some words are chosen for your weak keys; you will not see which.'],
- speed:['Thirty seconds: force the rate.','An underline moves through the text at the target speed; stay with it or ahead of it. The target is raw speed, errors included, so do not fix them: a burst with few errors was not fast enough to teach anything, so long as you are still following the text. Reach the target and the next burst is new text one step faster; miss it and the same text comes back, three tries at most. The accuracy floor for a pass is in Settings (90% by default).'],
+ speed:['Thirty seconds: force the rate.','An underline moves through the text at the target speed; stay with it or ahead of it. The target is raw speed, errors included, so Backspace is off: just keep going. A burst with few errors was not fast enough to teach anything, so long as you are still following the text. Reach the target and the next burst is new text one step faster; miss it and the same text comes back, three tries at most. The accuracy floor for a pass is in Settings (90% by default).'],
  shift:['Capitals with the home-row Shift. This measures timing, not speed.','For each capital: a short pause, hold F (for a right-hand letter) or J (for a left-hand letter), press the letter, release the letter, then release the Shift key. A lowercase letter or a stray f or j means the timing was off; the result says which way.'],
  daily:['Everyday symbols, typed exactly, spaces included.','Most symbols are on the Symbols layer (hold the Enter thumb), digits on the Numbers layer (Neru and Enter thumbs together). Do not hunt; a slow symbol is named afterwards with its key and layer.'],
  code:['Real code lines, typed exactly.','Brackets, operators and paths come from your symbol layers. Slow symbols are named afterwards with their key and layer.'],
@@ -1525,7 +1525,7 @@ window.addEventListener('keydown',e=>{
   if(T.ended)return;
   if(e.key==='Shift'){T.shiftIsDown=true;return;}
   if(e.ctrlKey)return;if(tag==='BUTTON')document.activeElement.blur();
-  if(e.key==='Backspace'){e.preventDefault();if(!T.ended&&T.started)T.backspaces++;backspace(e);return;}
+  if(e.key==='Backspace'){e.preventDefault();if(T.block&&T.block.id==='speed')return;/* speed bursts count raw speed, errors included: nothing to fix, so Backspace is off */if(!T.ended&&T.started)T.backspaces++;backspace(e);return;}
   if(e.metaKey||e.altKey)return;if(e.key.length!==1)return;
   e.preventDefault();if(e.repeat)return;if(!T.downAt[e.code])T.downAt[e.code]=performance.now();onChar(e.key,e.code);});
 window.addEventListener('keydown',e=>{if(e.key.length===1||e.key==='Backspace')document.body.classList.add('nocursor');},true);window.addEventListener('mousemove',()=>document.body.classList.remove('nocursor'),{passive:true});
