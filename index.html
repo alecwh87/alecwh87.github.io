@@ -486,7 +486,7 @@ body.tut-on #kbtn{z-index:71}
 </section>
 
 <section id="race" hidden>
-  <div class="ctl" id="rctl"><button id="c-restart" title="same quote from the start">restart <span class="kbd">Tab</span></button><button id="c-new" title="a different quote">new quote</button><button id="c-quit">quit</button></div>
+  <div class="ctl" id="rctl"><button id="c-restart" title="same quote from the start">restart <span class="kbd">Tab</span></button><button id="c-pause" title="pause the race">pause <span class="kbd">Esc</span></button><button id="c-new" title="a different quote">new quote</button><button id="c-quit">quit</button></div>
   <div id="tmeta"><span id="t-left"></span><span id="t-right"></span></div>
   <div class="rtrack" id="track"></div>
   <div id="tbox" tabindex="0"><div id="words"></div><div id="count" class="rcount" hidden></div></div>
@@ -873,7 +873,7 @@ function pickQuote(){const [lo,hi]=QLEN[db.qlen]||QLEN.any;const pool=QUOTES.fil
 function ghostsFor(h){const g=db.ghosts[h]||{};const out=[];if(g.best)out.push({id:'ghost',kind:'ghost',name:'your ghost '+r0(g.best.wpm),rec:RACE.unpack(g.best.g),wpm:g.best.wpm});if(FRIEND&&FRIEND.h===h)out.push({id:'friend',kind:'friend',name:(FRIEND.name||'friend')+' '+r0(FRIEND.wpm),rec:RACE.unpack(FRIEND.g),wpm:FRIEND.wpm});else if(g.friend)out.push({id:'friend',kind:'friend',name:(g.friend.name||'friend')+' '+r0(g.friend.wpm),rec:RACE.unpack(g.friend.g),wpm:g.friend.wpm});return out;}
 function storeGhost(h,kind,o){const g=db.ghosts[h]||(db.ghosts[h]={});if(kind==='best'){if(!g.best||o.wpm>g.best.wpm){g.best=o;return true;}return false;}g[kind]=o;const ks=Object.keys(db.ghosts);if(ks.length>160)delete db.ghosts[ks[0]];return false;}
 /* ---- race setup ---- */
-function setup(q,opt){stopPG();opt=opt||{};const words=q[0].split(' ');const text=q[0];const h=RACE.textHash(text);
+function setup(q,opt){stopPG();{const g=document.getElementById('gpz');if(g)g.hidden=true;}opt=opt||{};const words=q[0].split(' ');const text=q[0];const h=RACE.textHash(text);
   T={q,words,text,h,src:q[1],typed:words.map(()=>''),wi:0,started:0,ended:0,keystrokes:0,correct:0,incorrect:0,bs:0,rec:[],lastC:0,combo:0,bestCombo:0,wordErr:false,startAt:(opt.startAt||performance.now()+3400)+(opt.delay||0),base:opt.startAt||performance.now()+3400,delay:opt.delay||0,peerDelay:opt.peerDelay||0,mode:opt.mode||'duel',pacerT:opt.pacer||db.target,state:'count',live:!!opt.live,daily:!!opt.daily,target:db.target,pacer:true,ghosts:opt.live?[]:ghostsFor(h),peerP:0,peerW:0,ahead:null,fin:{},badges:[]};
   cum=[];let c=0;words.forEach(w=>{c+=w.length+1;cum.push(c);});T.total=text.length;
   $('#home').hidden=true;$('#results').hidden=true;$('#race').hidden=false;document.body.classList.remove('typing');
@@ -893,7 +893,7 @@ function wpmNow(now){const s=(now-T.started)/1000;return s>1?T.lastC/5/(s/60):0;
 let lastSend=0;
 /* one bad frame never freezes the pacer and the ghosts: the frame is retried on the next one */
 function loop(){try{loop0();}catch(e){console.error(e);if(T&&T.state!=='done')requestAnimationFrame(loop);}}
-function loop0(){if(!T||T.state==='done')return;const now=performance.now();
+function loop0(){if(!T||T.state==='done')return;if(T.paused){requestAnimationFrame(loop);return;}const now=performance.now();
   if(T.state==='count'){const left=T.startAt-now;const n=RACE.lightsCount(left);if(left<=0){T.state='go';T.started=T.startAt;track.go();RACE.sfx.go();$('#hint').textContent='';document.body.classList.add('typing');$('#track').classList.add('racing');if(T.live&&(MATCH.me===2||MATCH.peer===2))setTimeout(()=>RACE.callout($('#track'),'matchpoint',MATCH.me===2&&MATCH.peer===2?'deciding race':'match point'),700);}
     else{if(n!==T.countShown){T.countShown=n;if(n>0)RACE.sfx.light();}track.lights(left,T.holdNote||(T.delay>0?'head start for '+PEER.name:T.peerDelay>0?'your head start':'get ready'));}}
   if(T.state==='count'&&T.live&&T.delay>0&&now>=T.base){T.holdNote=PEER.name+' is off · you go in '+Math.max(0,(T.startAt-now)/1000).toFixed(1)+' s';const el0=now-T.base;const pc0=Math.min(T.total,el0/60000*T.pacerT*5);track.set('pacer',{p:pc0/T.total,wpm:T.pacerT});track.set('peer',{p:T.peerP,wpm:T.peerW});}
@@ -926,7 +926,8 @@ window.addEventListener('keydown',e=>{const tag=(document.activeElement||{}).tag
   if(!T){/* in a room, Enter accepts the game the friend picked */if(e.key==='Enter'&&inRoom()&&PICK&&PICK.by==='peer'&&!PICK.ok&&!$('#home').hidden&&!inLiveGame()){e.preventDefault();pickReady();return;}
   /* Enter with the lobby or options up does nothing, not even re-click the button that opened them */if(e.key==='Enter'&&!$('#lobby').hidden&&!(e.target&&e.target.closest&&e.target.closest('#lobby'))){e.preventDefault();return;}
   if(e.key==='Enter'&&!$('#home').hidden&&$('#lobby').hidden){e.preventDefault();if(LINK){if(LINK.open)return;leaveLive();}const xg=xgOf(GAME);if(xg)xg.solo();else if(GAME==='turf')TURF.solo();else startSolo();}return;}
-  if(e.key==='Escape'){e.preventDefault();if(T.live){if(T.state==='done')goHome();/* back to the room, still connected */return;}if(T.state==='done')goHome();else setup(T.q);return;}
+  if(e.key==='Escape'){e.preventDefault();if(T.live){if(T.state==='done')goHome();/* back to the room, still connected */return;}if(T.paused){if(e.isTrusted===false){racePause(false);setup(T.q);}else racePause(false);return;}if(T.state==='go'&&!TUT_ON&&e.isTrusted!==false){racePause(true);return;}if(T.state==='done')goHome();else setup(T.q);return;}
+  if(T.paused){e.preventDefault();if(e.key==='Enter')racePause(false);else if(e.key==='h'||e.key==='H'){racePause(false);quitGame($('#c-quit'));}return;}
   if(e.key==='Enter'){e.preventDefault();if(T.state==='done'){const b=$('#b-next');if(b&&!b.disabled)b.click();}return;}
   if(e.key==='Tab'){e.preventDefault();return;}
   if(T.live&&T.state==='done'&&/^[1-4]$/.test(e.key)){e.preventDefault();react(+e.key-1);return;}
@@ -6754,11 +6755,19 @@ document.addEventListener('click',e=>{if(!inRoom())return;const b=e.target.close
 /* ---- on-screen controls and options ---- */
 function twoStep(btn,label,fn){if(btn.dataset.armed){fn();return;}btn.dataset.armed='1';const old=btn.innerHTML;btn.textContent=label;btn.classList.add('warn');setTimeout(()=>{if(btn.isConnected){delete btn.dataset.armed;btn.innerHTML=old;btn.classList.remove('warn');}},3000);}
 /* quit never drops the link: mid-game it stops the game for both and returns both to the room; after a game it just goes back to the room */
+/* ---- pause (solo races): the same pause card as the other games (#gpz). Esc or the pause button freezes the race clock, pacer and ghosts; Esc or Enter resume, Tab restarts, H home. Live races are short and shared, so they do not pause. ---- */
+function rpzBox(){let el=$('#gpz');if(!el){el=document.createElement('div');el.id='gpz';el.hidden=true;el.innerHTML='<div class="gpzc"><b>paused</b><span class="gpzby"></span><div class="gpzk"><span><span class="kbd">Esc</span> or <span class="kbd">Enter</span> resume</span><span><span class="kbd">Tab</span> restart</span><span><span class="kbd">H</span> home</span></div><div class="gpzb"><button class="cta" data-a="resume">resume</button><button data-a="restart">restart</button><button data-a="home">home</button></div></div>';document.body.appendChild(el);}
+  if(!$('#gpz-css')){const st=document.createElement('style');st.id='gpz-css';st.textContent='#gpz{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--bg) 70%,transparent);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);animation:gpzin .18s ease-out}#gpz[hidden]{display:none}@keyframes gpzin{from{opacity:0}to{opacity:1}}.gpzc{text-align:center;background:var(--card);border:1px solid var(--main);border-radius:14px;padding:1.2rem 1.6rem 1.3rem;width:min(22rem,92vw);box-shadow:0 12px 44px -12px rgba(0,0,0,.7)}.gpzc b{display:block;font-family:var(--ui);font-size:1.5rem;letter-spacing:.22em;text-transform:uppercase;color:var(--main)}.gpzby{display:block;color:var(--sub);font-family:var(--ui);font-size:.85rem;margin-top:.15rem;min-height:1.1em}.gpzk{display:flex;gap:.6rem 1.1rem;justify-content:center;flex-wrap:wrap;margin:.85rem 0;color:var(--sub);font-family:var(--ui);font-size:.8rem}.gpzb{display:flex;gap:.5rem;justify-content:center;flex-wrap:wrap} .gpzb button{padding:.5rem 1rem} .gpzb .cta{padding:.55rem 1.2rem;font-size:1rem}';document.head.appendChild(st);}return el;}
+function racePause(on){if(!T||T.live)return;const now=performance.now();
+  if(on){if(T.paused||T.state!=='go'||TUT_ON)return;T.paused=now;document.body.classList.remove('typing');const el=rpzBox();el.querySelector('.gpzby').textContent='';el.hidden=false;
+    el.onclick=e=>{const b=e.target.closest('button');if(!b)return;const a=b.dataset.a;racePause(false);if(a==='restart'&&T)setup(T.q);else if(a==='home')quitGame($('#c-quit'));};return;}
+  if(!T.paused)return;const d=now-T.paused;T.paused=0;T.started+=d;if(T.base!=null)T.base+=d;if(T.startAt!=null)T.startAt+=d;document.body.classList.add('typing');const el=$('#gpz');if(el)el.hidden=true;if(!RACE.touchFocused())$('#tbox').focus();}
+$('#c-pause').onclick=e=>{e.currentTarget.blur();racePause(true);};
 function quitGame(btn){const playing=inRoom()&&inLiveGame();const go=()=>{if(playing&&LINK&&LINK.open)LINK.send({t:'room'});stopPG();goHome();};if(playing)twoStep(btn,'stop the game for both? click again',go);else go();}
 $('#c-restart').onclick=e=>{if(T&&T.live){twoStep(e.currentTarget,'new race for both? click again',()=>restartLive(true));return;}if(T)setup(T.q);};
 $('#c-new').onclick=()=>{if(T&&!T.live){db.sameTx=0;T=null;setup(pickQuote());}};
 $('#c-quit').onclick=e=>quitGame(e.currentTarget);
-function syncCtl(){const live=!!(T&&T.live);{const b=$('#c-restart');const want=live?'new race <span class="kbd">Tab</span>':'restart <span class="kbd">Tab</span>';if(!b.dataset.armed&&b.innerHTML!==want)b.innerHTML=want;}$('#c-restart').hidden=live&&!(LINK&&LINK.open);$('#c-new').hidden=live;{const q=$('#c-quit');if(!q.dataset.armed)q.textContent=live?'quit (both)':'quit';}}
+function syncCtl(){const live=!!(T&&T.live);{const b=$('#c-restart');const want=live?'new race <span class="kbd">Tab</span>':'restart <span class="kbd">Tab</span>';if(!b.dataset.armed&&b.innerHTML!==want)b.innerHTML=want;}$('#c-restart').hidden=live&&!(LINK&&LINK.open);$('#c-new').hidden=live;$('#c-pause').hidden=live||!!(T&&T.state==='done');{const q=$('#c-quit');if(!q.dataset.armed)q.textContent=live?'quit (both)':'quit';}}
 setInterval(()=>{if(!$('#race').hidden)syncCtl();},500);
 function seg(id,cur,opts){return '<span class="seg" id="'+id+'">'+opts.map(([v,l])=>'<button data-v="'+v+'" class="'+(String(cur)===String(v)?'on':'')+'">'+l+'</button>').join('')+'</span>';}
 function openOptions(){if((T&&T.live&&T.state!=='done')||PGAMES().some(g=>g.playingLive())){toast('Finish or leave the live game first.');return;}if(T||PGAMES().some(g=>g.S)){stopPG();goHome();}
