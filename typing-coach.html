@@ -801,11 +801,11 @@ return {skillOf,speedOf,fairHold,fairAdjust,fairWho,touchInput,touchFocused,stan
 
 const KEY='typingcoach.v3';
 const W1SET=new Set(W1);
-const DEF={settings:{theme:'serika',fontFam:'Oxygen',highlight:'next_word',codeMode:false,punct:true,numbers:true,weave:35,readAhead:false,homeRow:'asdfghjkl;',shiftMods:'fj',left:'qwertasdfgzxcvb12345',fingers:'qaz1 wsx2 edc3 rfvtgb45 yhnujm67 ik,8 ol.9 p;/0',liveWpm:false,details:false,raceName:'',raceUrl:'',fontSize:1.6,targetStep:2,speedAcc:90,accGoal:97},keys:{},bigrams:{},words:{},edit:{},tests:[],targets:[],target:null,span:null,issues:{},passStreak:0,failStreak:0,sessions:0,baseline:null,corpus:'',blind:null,exp:null};
+const DEF={settings:{theme:'serika',fontFam:'Oxygen',highlight:'next_word',codeMode:false,punct:true,numbers:true,weave:35,readAhead:false,homeRow:'asdfghjkl;',shiftMods:'fj',left:'qwertasdfgzxcvb12345',fingers:'qaz1 wsx2 edc3 rfvtgb45 yhnujm67 ik,8 ol.9 p;/0',liveWpm:false,details:false,raceName:'',raceUrl:'',fontSize:1.6,targetStep:2,speedAcc:92,accGoal:97},keys:{},bigrams:{},words:{},edit:{},tests:[],targets:[],target:null,span:null,issues:{},passStreak:0,failStreak:0,sessions:0,baseline:null,corpus:'',blind:null,exp:null};
 const BLOCKS={
  warm:{id:'warm',name:'Warm-up',dur:60,text:'plain',stop:'word',why:'A minute of plain words to settle the hands.'},
  acc:{id:'acc',name:'Accuracy',dur:60,text:'full',stop:'word',why:'Real-looking text with capitals, punctuation and numbers; an error stops the word until it is fixed. Your weak keys and pairs are woven in here.'},
- speed:{id:'speed',name:'Speed',dur:30,text:'easy',stop:'off',pace:true,why:'Thirty-second bursts of ordinary words with a pace line at your target. The target is raw speed, errors included, so long as accuracy stays above the floor; a burst with few errors was not fast enough to teach anything. Reach the target and the next burst is new text one step faster; miss it and the same text comes back, three tries at most.'},
+ speed:{id:'speed',name:'Speed',dur:20,text:'easy',stop:'off',pace:true,why:'Twenty-second bursts of ordinary words with a pace line at your target, which sits about 5% above your recent speed and never more than 8%. The target is raw speed, errors included, so long as accuracy stays above the floor; a dropped or doubled letter costs one error, not the rest of the word. Two passes in a row move it up one, two misses move it down one, and it drops two when fewer than 6 of your last 10 pass. After each burst, retype your three worst words twice, slowly.'},
  shift:{id:'shift',name:'Shift',dur:30,text:'caps',stop:'word',why:'Words with many capitals and some CamelCase, to train the home-row Shift. Order: gap, mod down, letter down, letter up, mod up. Every capital is checked and every failure is named.'},
  code:{id:'code',name:'Code',dur:30,text:'code',stop:'word',why:'Real code lines from the Monkeytype code sets, chosen for the symbols you are slow on.'},
  daily:{id:'daily',name:'Everyday symbols',dur:30,text:'daily',stop:'word',why:'The symbols of chat, notes and email: apostrophes, quotes, parentheses, at-signs, slashes, times, prices, addresses. Weighted to the ones you are slow on.'},
@@ -816,7 +816,7 @@ const BLOCKS={
  race:{id:'race',name:'Race',dur:0,text:'quote',stop:'word',pace:true,why:'A real quote as a race: against the pacer at your target, your own best ghost on that quote, a friend\u2019s ghost from a link, or a friend live. Beat the pacer and the next race is a new quote one step faster; miss and the same quote comes back, three tries at most. The same rule as the speed bursts, with the fun turned up.'},
  span:{id:'span',name:'Span check',dur:15,text:'easy',stop:'off',why:'Four 15-second bursts with 0, 1, 2 and 3 words of preview. Where your speed stops improving is how far ahead your eyes work.'},
 };
-const PLANS={full:[['warm',1],['acc',3],['speed',6],['shift',2],['daily',2],['edit',1],['compose',1],['bench',2]],short:[['warm',1],['acc',2],['speed',3],['shift',1],['edit',1],['bench',1]],span:[['span',4]],blind:[['blind',2]]};
+const PLANS={full:[['warm',1],['acc',3],['speed',8],['shift',2],['daily',2],['edit',1],['compose',1],['bench',2]],short:[['warm',1],['acc',2],['speed',4],['shift',1],['edit',1],['bench',1]],span:[['span',4]],blind:[['blind',2]]};
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const rnd=n=>Math.floor(Math.random()*n);
 const mean=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:0;
@@ -1120,9 +1120,12 @@ function countChars(input,target,creditPartial){let allCorrect=0,correctWord=0,i
     if(ic===tc){if(tc===' '&&!wordCorrect)extra++;else allCorrect++;if(wordCorrect||(creditPartial&&partial))correctWord++;}
     else if(ic===undefined){if(!creditPartial)missed++;}else if(tc===undefined||(tc===' '&&ic!==' '&&!input.includes(' ')))extra++;else incorrect++;}
   return {allCorrect,correctWord,incorrect,extra,missed};}
+/* letters typed in order but shifted by a dropped or doubled letter: credit them back so one slip costs one error */
+function lcs(a,b){let p=new Array(b.length+1).fill(0);for(let i=1;i<=a.length;i++){const c=new Array(b.length+1).fill(0);for(let j=1;j<=b.length;j++)c[j]=a[i-1]===b[j-1]?p[j-1]+1:Math.max(p[j],c[j-1]);p=c;}return p[b.length];}
+function realign(last){let g=0;for(let i=0;i<=last;i++){const a=T.typed[i]||'',w=T.words[i]||'';if(!a||a===w)continue;let pos=0;for(let j=0;j<a.length;j++)if(a[j]===w[j])pos++;g+=Math.max(0,lcs(a,w)-pos);}return g;}
 function metrics(endAt){const end=endAt||T.ended;const secs=(end-T.started)/1000;const c={allCorrect:0,correctWord:0,incorrect:0,extra:0,missed:0};const last=Math.min(T.wi,T.words.length-1);
   for(let i=0;i<=last;i++){const done=i<T.wi;const sp=done&&i<T.words.length-1;const target=T.words[i]+(sp?' ':'');const input=T.typed[i]+(sp?' ':'');if(!done&&!T.typed[i].length)break;const r=countChars(input,target,!done&&T.timed);for(const k in c)c[k]+=r[k];}
-  const wpm=secs>0?c.correctWord/5/(secs/60):0,raw=secs>0?(c.allCorrect+c.incorrect+c.extra)/5/(secs/60):0;const acc=T.keystrokes?100*T.correct/T.keystrokes:0;
+  const wpm=secs>0?c.correctWord/5/(secs/60):0,raw=secs>0?(c.allCorrect+c.incorrect+c.extra)/5/(secs/60):0;const acc=T.keystrokes?100*Math.min(T.keystrokes,T.correct+(T.block&&T.block.stop==='off'?realign(last):0))/T.keystrokes:0;
   const bursts=T.sec.map((n,i)=>{const dur=i<T.sec.length-1?1:Math.max(0.2,secs-i);return Math.round(n/5/(dur/60));});
   const cons=bursts.length>1&&mean(bursts)>0?Math.max(0,Math.min(100,kogasa(sdPop(bursts)/mean(bursts)))):0;
   const sp=T.ikis.slice(0,-1);const keyCons=sp.length>1&&mean(sp)>0?Math.max(0,Math.min(100,kogasa(sdPop(sp)/mean(sp)))):0;
@@ -1141,9 +1144,12 @@ function commit(m){const s=S();
   const hes={};for(const k in T.ctx)if(T.ctx[k].length>=3)hes[k]=r0(median(T.ctx[k]));
   const rec={t:Date.now(),h:new Date().getHours(),b:T.block.id,dur:r0(m.secs),wpm:r1(m.wpm),raw:r1(m.raw),acc:r1(m.acc),cons:r0(m.cons),kcons:r0(m.keyCons),sd:r0(m.sd),iki:r0(m.iki),roll:r0(m.roll),ks:T.keystrokes,bs:T.backspaces,hold:T.holds.length>=10?r0(median(T.holds)):null,errC:T.errC,errT:T.errT,hes,wob:(T.preErr.length>=3&&T.preOk.length>=3&&mean(T.preOk)>0)?r1(mean(T.preErr)/mean(T.preOk)):null,rcost:T.recIki.length>=4?r0(median(T.recIki)-median(T.ikis)):null,transX:T.transX,rollBy:T.rollBy,kspc:Math.round(m.kspc*100)/100,fixed:m.fixed,left:m.left};
   const cs=capsSummary();if(cs)rec.caps=cs;
-  if(T.block.id==='speed'){if(db.target==null)db.target=initialTarget();rec.target=db.target;rec.pass=m.raw>=db.target&&m.acc>=s.speedAcc;rec.try=(db.sameTx||0)+1;
-    if(rec.pass){const first=!(db.sameTx);db.passStreak++;db.failStreak=0;db.sameTx=0;db.target+=first?s.targetStep:1;rec.note='Target reached'+(first?'':' on try '+rec.try)+'. Next burst: new text at '+db.target+' wpm.';}
-    else{db.failStreak++;db.passStreak=0;db.sameTx=(db.sameTx||0)+1;const why=m.acc<s.speedAcc?'Under '+s.speedAcc+'% accuracy, so no pass. ':r0(m.raw)+' raw against '+db.target+'. ';if(db.sameTx>=3){db.sameTx=0;db.target=Math.max(10,db.target-1);rec.note=why+'Three tries on this text: new text next, target lowered to '+db.target+' wpm.';}else{REPEAT=LAST_TX;rec.note=why+'The same text comes back'+(db.sameTx===2?' for a last try':'')+'; push harder on it.';}}}
+  if(T.block.id==='speed'){if(db.target==null)db.target=initialTarget();rec.target=db.target;rec.pass=m.raw>=db.target&&m.acc>=s.speedAcc;db.sameTx=0;
+    if(rec.pass){db.passStreak++;db.failStreak=0;}else{db.failStreak++;db.passStreak=0;}
+    const recent=db.tests.filter(t=>t.b==='speed').slice(-9).concat([rec]),rate=recent.filter(t=>t.pass).length/recent.length,was=db.target;
+    if(!rec.pass&&recent.length>=5&&rate<0.6){db.target-=2;db.failStreak=0;}else if(db.passStreak>=2){db.target+=1;db.passStreak=0;}else if(db.failStreak>=2){db.target-=1;db.failStreak=0;}
+    clampTarget();
+    rec.note=(rec.pass?'Pass. ':m.acc<s.speedAcc?'Under '+s.speedAcc+'% accuracy, so no pass. ':r0(m.raw)+' raw against '+was+'. ')+(db.target>was?'Two in a row: next target '+db.target+' wpm.':db.target<was?'Target eased to '+db.target+' wpm.':'Target stays at '+db.target+' wpm.');}
   if(T.block.id==='race')raceCommit(rec,m);if(T.block.id==='acc'&&T.paceWpm)accCeilUpdate(rec);
   if(T.block.id==='blind'&&session)rec.cov=session.ti;
   if(T.block.id==='span'&&session)rec.preview=session.ti;
@@ -1157,8 +1163,10 @@ function benchTests(){return db.tests.filter(t=>t.b===BENCH);}
 function accCeil(){if(session&&session.expArm&&db.exp&&db.exp.name==='pace')return session.paceAcc||null;const l=last10();if(!l)return null;const c=db.accCeil||{f:0.9};return r0(c.f*l.wpm);}
 function accCeilUpdate(rec){const a=db.accCeil||{f:0.9,n:0};if(rec.acc>=97)a.f=Math.min(1.05,a.f+0.02);else if(rec.acc<95)a.f=Math.max(0.7,a.f-0.03);a.n=(a.n||0)+1;db.accCeil=a;}
 function last10(){const b=benchTests().slice(-10);return b.length?{wpm:mean(b.map(t=>t.wpm)),acc:mean(b.map(t=>t.acc)),raw:mean(b.map(t=>t.raw)),cons:mean(b.map(t=>t.cons)),sd:mean(b.map(t=>t.sd)),iki:mean(b.map(t=>t.iki)),n:b.length}:null;}
-function initialTarget(){const l=last10();if(l)return r0(l.raw+3);const any=db.tests.filter(t=>!['speed','code','edit','compose','span'].includes(t.b)).slice(-5);if(any.length)return r0(mean(any.map(t=>t.raw||t.wpm))+3);return 40;}
-function refreshTarget(){const l=last10();if(!l){if(db.target==null)db.target=initialTarget();return;}const base=r0(l.raw+3);if(db.target==null||db.target<base){db.target=base;db.passStreak=0;db.failStreak=0;db.sameTx=0;}else if(db.target>l.raw+15){db.target=r0(l.raw+8);db.sameTx=0;}save();}
+function speedBase(){const b=db.tests.filter(t=>t.b==='speed').slice(-10);if(b.length>=3)return median(b.map(t=>t.raw));const l=last10();if(l)return l.raw;const any=db.tests.filter(t=>!['speed','code','edit','compose','span'].includes(t.b)).slice(-5);if(any.length)return mean(any.map(t=>t.raw||t.wpm));return 38;}
+function initialTarget(){return Math.max(10,r0(speedBase()*1.05));}
+function clampTarget(){const b=speedBase();db.target=Math.max(Math.max(10,r0(b*0.9)),Math.min(r0(b*1.08),db.target));}
+function refreshTarget(){if(db.target==null)db.target=initialTarget();else clampTarget();db.sameTx=0;save();}
 
 /* ---------- results ---------- */
 function showResults(rec,m){
@@ -1166,7 +1174,7 @@ function showResults(rec,m){
   if(T.race){if(rec){raceResults(rec,m);return;}T.race.state='done';cancelAnimationFrame(RL.raf);}
   if(!rec){R.innerHTML='<p class="sub">Too short to count. <span class="kbd">Enter</span> for the next test, <span class="kbd">Esc</span> to retry.</p>';return;}
   $('#testcard').hidden=true;
-  let h=(T.src?'<div class="sub" style="margin-bottom:.6rem">\u201c'+esc(T.words.join(' '))+'\u201d \u2014 '+esc(T.src)+'</div>':'')+'<div class="res"><div class="nums">';
+  let h=(T.src?'<div class="sub" style="margin-bottom:.6rem">\u201c'+esc(T.words.join(' '))+'\u201d \u00b7 '+esc(T.src)+'</div>':'')+'<div class="res"><div class="nums">';
   h+='<div><div class="lbl">'+(b.id==='speed'?'raw wpm':'wpm')+'</div><div class="huge '+(b.id==='speed'?(rec.pass?'ok':'err'):'')+'">'+r0(b.id==='speed'?m.raw:m.wpm)+'</div>'+(b.id==='speed'?'<div class="sub">net '+r0(m.wpm)+'</div>':'')+'</div>';
   h+='<div><div class="lbl">acc</div><div class="huge" style="font-size:2.6rem'+(m.acc<s.accGoal&&b.stop==='word'?';color:var(--err)':'')+'">'+r1(m.acc)+'%</div><div class="sub">every wrong key, fixed or not</div></div>';
   if(b.id==='speed')h+='<div><div class="lbl">target '+rec.target+'</div><div class="mid '+(rec.pass?'ok':'err')+'">'+(rec.pass?'pass':'miss')+'</div></div>';
@@ -1186,6 +1194,8 @@ function showResults(rec,m){
     else if((rec.errT.anticipation||0)>=3&&(rec.errT.anticipation||0)>=0.5*Object.values(rec.errT).reduce((a,x)=>a+x,0)){v='Most errors were the next letter arriving early. The hands are ahead of the eyes; let the word finish.';quiet=false;}
     else v='On track.';}
   h+='<div class="verdict '+(quiet?'quiet':'')+'">'+v+'</div>';
+  let fix=[];if(b.id==='speed'){const worst={};for(let i=0;i<T.wi;i++)if(T.werr[i])worst[T.words[i]]=Math.max(worst[T.words[i]]||0,T.werr[i]);fix=Object.entries(worst).sort((x,y)=>y[1]-x[1]).slice(0,3).map(x=>x[0]);
+    if(fix.length)h+='<div id="r-fix" style="margin:.8rem 0;padding:.7rem .9rem;border:1px solid var(--main);border-radius:10px"><div class="lbl">fix these: type each twice, slowly, then Enter</div><div style="display:flex;gap:1rem;flex-wrap:wrap;font-size:1.5rem;margin:.4rem 0">'+fix.map(w=>'<span data-w="'+esc(w)+'" data-n="0">'+esc(w)+' <small class="sub" style="font-size:.8rem">0 of 2</small></span>').join('')+'</div><input id="r-fixin" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="type a word, then Space" style="font-size:1.2rem;width:100%;max-width:22rem"></div>';}
   if(session&&!session.finished){const bl=session.plan[session.bi];if(session.ti+1>=bl[1]){const ts=db.tests.slice(-bl[1]).filter(t=>t.b===bl[0]);if(ts.length>1)h+='<div class="sub">'+esc(BLOCKS[bl[0]].name)+' block: '+r0(mean(ts.map(t=>bl[0]==='speed'?t.raw:t.wpm)))+(bl[0]==='speed'?' raw':'')+' wpm, '+r1(mean(ts.map(t=>t.acc)))+'% accuracy'+(bl[0]==='speed'?', '+ts.filter(t=>t.pass).length+' of '+ts.length+' passed':'')+'.'+(session.adapted&&bl[0]==='acc'?' '+session.adapted:'')+'</div>';}}
   h+='<div class="statrow"><div><div class="lbl">'+(b.id==='speed'?'net':'raw')+'</div><div class="v">'+r0(b.id==='speed'?m.wpm:m.raw)+'</div></div><div><div class="lbl">consistency</div><div class="v">'+r0(m.cons)+'%</div></div><div><div class="lbl">key spacing</div><div class="v">'+r0(m.iki)+' <span class="sub" style="font-size:.9rem">± '+r0(m.sd)+' ms</span></div></div><div><div class="lbl">rollover</div><div class="v">'+r0(m.roll)+'%</div></div><div><div class="lbl">errors</div><div class="v">'+(m.fixed+m.left)+'</div><div class="sub">'+m.left+' left in</div></div><div><div class="lbl">keys per character</div><div class="v'+(m.kspc>1.15?' err':'')+'">'+m.kspc.toFixed(2)+'</div><div class="sub">fastest tenth 1.10</div></div><div><div class="lbl">time</div><div class="v">'+r0(m.secs)+'s</div></div></div>';
   const bursts=[];for(let i=0;i<T.wi;i++){const [a,z]=T.wt[i];bursts.push(a&&z&&z>a?(T.words[i].length+1)/5/((z-a)/60000):null);}
@@ -1202,6 +1212,13 @@ function showResults(rec,m){
   h+='<details id="r-details"'+(s.details?' open':'')+'><summary>details</summary>'+d+'</details>';
   h+='<div class="row" style="margin-top:1rem"><button class="cta" style="font-size:1rem;padding:.6rem 1.2rem" id="b-next">'+nextLabel()+'</button><span class="sub"><span class="kbd">Enter</span> &nbsp; <span class="kbd">Esc</span> new text &nbsp; <span class="kbd">Shift+Esc</span> same text</span></div>';
   R.innerHTML=h;$('#b-next').onclick=e=>{e.target.blur();next();};
+  const fi=$('#r-fixin');if(fi){fi.readOnly=true;fi.focus();setTimeout(()=>{fi.readOnly=false;fi.value='';if(!$('#results').hidden&&document.activeElement!==fi)fi.focus();},300);
+    fi.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();fi.blur();next();}else if(e.key==='Escape'){fi.blur();}});
+    fi.addEventListener('input',()=>{if(!/\s$/.test(fi.value))return;const w=fi.value.trim().split(/\s+/).pop();fi.value='';if(!w)return;
+      const open=[...document.querySelectorAll('#r-fix [data-w]')].filter(x=>+x.dataset.n<2);const sp=open.find(x=>x.dataset.w===w)||open.find(x=>w.endsWith(x.dataset.w));
+      if(sp){const n=+sp.dataset.n+1;sp.dataset.n=n;sp.querySelector('small').textContent=n+' of 2';if(n>=2)sp.style.color='var(--main)';
+        if([...document.querySelectorAll('#r-fix [data-w]')].every(x=>+x.dataset.n>=2))$('#r-fix .lbl').textContent='fixed. Enter for the next burst';}
+      else{fi.style.borderColor='var(--err)';setTimeout(()=>fi.style.borderColor='',400);}});}
   drawResult($('#r-chart'),m.bursts,T.esec,m);
   refreshIdle();
 }
@@ -1289,7 +1306,7 @@ const INSTR={
  race:['Wait for GO, then race the markers above the text.','Type the quote exactly; an error stops the word until it is fixed. The hollow marker is the pacer at your target, the blue one your best run on this quote, the pink one a friend. Beat the pacer to move the target up; miss and the same quote comes back.'],
  warm:['Plain words to settle the hands.','Type at an easy speed and fix any error as it happens. Nothing here counts toward anything.'],
  acc:['Type exactly what you see, capitals and punctuation included.','A wrong letter stops the word: Backspace until it is gone (Option+Backspace clears the whole word), retype, keep going. Hold your accuracy goal without crawling. Some words are chosen for your weak keys; you will not see which.'],
- speed:['Thirty seconds: force the rate.','An underline moves through the text at the target speed; stay with it or ahead of it. The target is raw speed, errors included, so Backspace is off: just keep going. A burst with few errors was not fast enough to teach anything, so long as you are still following the text. Reach the target and the next burst is new text one step faster; miss it and the same text comes back, three tries at most. The accuracy floor for a pass is in Settings (90% by default).'],
+ speed:['Twenty seconds: ride the pace line.','An underline moves through the text at the target speed; stay with it. Backspace is off: if you slip, just keep going, and a dropped or doubled letter costs one error, not the rest of the word. The target sits about 5% above your recent speed: two passes in a row move it up one, two misses move it down one. Afterwards, retype your three worst words twice, slowly. The accuracy floor for a pass is in Settings (92% by default).'],
  shift:['Capitals with the home-row Shift. This measures timing, not speed.','For each capital: a short pause, hold F (for a right-hand letter) or J (for a left-hand letter), press the letter, release the letter, then release the Shift key. A lowercase letter or a stray f or j means the timing was off; the result says which way.'],
  daily:['Everyday symbols, typed exactly, spaces included.','Most symbols are on the Symbols layer (hold the Enter thumb), digits on the Numbers layer (Neru and Enter thumbs together). Do not hunt; a slow symbol is named afterwards with its key and layer.'],
  code:['Real code lines, typed exactly.','Brackets, operators and paths come from your symbol layers. Slow symbols are named afterwards with their key and layer.'],
