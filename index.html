@@ -66,9 +66,11 @@ h2{font-family:var(--ui);font-size:1.1rem;font-weight:600;margin:0 0 .5rem}
 .word i{font-style:normal;color:color-mix(in srgb,var(--fg) 58%,var(--bg));border-left:2px solid transparent;margin-left:-2px;transition:color .05s}
 .word.active i:not(.ok):not(.bad){color:var(--fg)}
 .word i.ok{color:color-mix(in srgb,var(--fg) 16%,var(--bg))}
-.word.active i:not(.ok),.word.next i:not(.bad){color:var(--fg)}
+.word.next i:not(.bad){color:var(--fg)}
 /* finished words fade back so the word you are on stands out */
-.word.done i.ok{color:color-mix(in srgb,var(--fg) 16%,var(--bg))} .word i.bad{color:var(--err)}
+.word.done i.ok{color:color-mix(in srgb,var(--fg) 16%,var(--bg))} .word i.bad{color:var(--err);text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:.18em} .word i.bad.xx{color:color-mix(in srgb,var(--err) 80%,var(--bg))}
+.word.active i.miss:not(.ok):not(.bad){color:var(--err);animation:miss .25s} @keyframes miss{40%{transform:translateY(-.12em)}}
+#fixhint{font-family:var(--ui);font-size:.9rem;color:var(--err);text-align:center;height:1.4rem;line-height:1.4rem;opacity:0;transition:opacity .2s} #fixhint.on{opacity:1}
 .word i.cur{border-left-color:var(--main);animation:blink 1s step-end infinite}
 .word.end{border-right-color:var(--main)}
 @keyframes blink{50%{border-color:transparent}}
@@ -489,7 +491,7 @@ body.tut-on #kbtn{z-index:71}
   <div class="ctl" id="rctl"><button id="c-restart" title="same quote from the start">restart <span class="kbd">Tab</span></button><button id="c-pause" title="pause the race">pause <span class="kbd">Esc</span></button><button id="c-new" title="a different quote">new quote</button><button id="c-quit">quit</button></div>
   <div id="tmeta"><span id="t-left"></span><span id="t-right"></span></div>
   <div class="rtrack" id="track"></div>
-  <div id="tbox" tabindex="0"><div id="words"></div><div id="count" class="rcount" hidden></div></div>
+  <div id="tbox" tabindex="0"><div id="words"></div><div id="count" class="rcount" hidden></div></div><div id="fixhint"></div>
   <div id="live"><span id="l-wpm"></span><span id="l-acc"></span><span id="hint">get ready</span><span id="combo" class="rcombo" style="position:static;margin-left:auto"></span></div>
   <div id="src"></div>
 </section>
@@ -893,7 +895,7 @@ function setup(q,opt){stopPG();{const g=document.getElementById('gpz');if(g)g.hi
   const W=$('#words');W.innerHTML='';W.style.transform='translateY(0)';wordEls=words.map((w,i)=>{const d=document.createElement('span');d.className='word';W.appendChild(d);return d;});words.forEach((w,i)=>renderWord(i));
   RACE.sfx.unlock();T.countShown=-1;$('#track').classList.remove('racing');document.body.classList.remove('rlead');requestAnimationFrame(loop);if(!RACE.touchFocused())$('#tbox').focus();}
 let cum=[],wordEls=[],paceEl=null,peerEl=null;
-function renderWord(i){const el=wordEls[i];if(!el)return;const w=T.words[i],t=T.typed[i];let h='';for(let k=0;k<w.length;k++){let c=w[k],cl='';if(k<t.length){if(t[k]===c)cl='ok';else{cl='bad';c=t[k];}}else if(k===t.length&&i===T.wi)cl='cur';h+='<i class="'+cl+'">'+esc(c)+'</i>';}for(let k=w.length;k<t.length;k++)h+='<i class="bad">'+esc(t[k])+'</i>';el.innerHTML=h;el.className='word'+(i===T.wi?' active':i<T.wi?' done':i===T.wi+1?' next':'')+(i===T.wi&&t.length>=w.length?' end':'');}
+function renderWord(i){const el=wordEls[i];if(!el)return;const w=T.words[i],t=T.typed[i];let h='';for(let k=0;k<w.length;k++){let c=w[k],cl='';if(k<t.length){if(t[k]===c)cl='ok';else cl='bad';}else if(k===t.length&&i===T.wi)cl='cur';h+='<i class="'+cl+'">'+esc(c)+'</i>';}for(let k=w.length;k<t.length;k++)h+='<i class="bad xx">'+esc(t[k])+'</i>';el.innerHTML=h;el.className='word'+(i===T.wi?' active':i<T.wi?' done':i===T.wi+1?' next':'')+(i===T.wi&&t.length>=w.length?' end':'');}
 function scrollWords(){const el=wordEls[T.wi];if(!el)return;const lh=parseFloat(getComputedStyle($('#words')).lineHeight);$('#words').style.transform='translateY('+(-Math.max(0,el.offsetTop-lh))+'px)';}
 function progress(){const t=T.typed[T.wi]||'',w=T.words[T.wi]||'';let k=0;while(k<t.length&&t[k]===w[k])k++;return (T.wi?cum[T.wi-1]:0)+k;}
 function wpmNow(now){const s=(now-T.started)/1000;return s>1?T.lastC/5/(s/60):0;}
@@ -944,13 +946,15 @@ window.addEventListener('keydown',e=>{const tag=(document.activeElement||{}).tag
   if(e.key==='Backspace'){e.preventDefault();const t=T.typed[T.wi];if(!t.length)return;T.bs++;T.typed[T.wi]=(e.altKey||e.metaKey)?'':t.slice(0,-1);renderWord(T.wi);return;}
   if(e.metaKey||e.altKey||e.key.length!==1)return;e.preventDefault();if(e.repeat)return;onChar(e.key);});
 function onChar(ch){const word=T.words[T.wi],typed=T.typed[T.wi];
-  if(ch===' '){if(!typed.length)return;T.keystrokes++;if(typed!==word){T.incorrect++;bad();return;}T.correct++;wordDone();T.wi++;if(T.wi>=T.words.length){finish();return;}for(let k=T.wi-1;k<=T.wi+5;k++)renderWord(k);scrollWords();return;}
+  if(ch===' '){if(!typed.length)return;T.keystrokes++;if(typed!==word){T.incorrect++;bad();fixHint();return;}T.correct++;wordDone();T.wi++;if(T.wi>=T.words.length){finish();return;}for(let k=T.wi-1;k<=T.wi+5;k++)renderWord(k);scrollWords();return;}
   const idx=typed.length,exp=word[idx];T.keystrokes++;
-  if(exp===undefined){if(idx-word.length>=5)return;T.typed[T.wi]=typed+ch;T.incorrect++;bad();}
+  if(exp===undefined){if(idx-word.length>=3){bad();fixHint();return;}if(db.stopErr){T.incorrect++;bad();return;}T.typed[T.wi]=typed+ch;T.incorrect++;bad();}
   else if(ch===exp){T.typed[T.wi]=typed+ch;T.correct++;RACE.sfx.key();}
+  else if(db.stopErr&&typed===word.slice(0,idx)){T.incorrect++;bad();const li=wordEls[T.wi]&&wordEls[T.wi].children[idx];if(li){li.classList.remove('miss');void li.offsetWidth;li.classList.add('miss');}return;}
   else{T.typed[T.wi]=typed+ch;T.incorrect++;bad();}
   renderWord(T.wi);
   if(T.wi===T.words.length-1&&T.typed[T.wi]===word){wordDone();T.wi++;finish();}}
+function fixHint(){const h=$('#fixhint');if(!h)return;h.textContent='Fix the red letters first: Backspace';h.classList.add('on');clearTimeout(fixHint.t);fixHint.t=setTimeout(()=>h.classList.remove('on'),1800);}
 function bad(){RACE.sfx.err();T.errSince=(T.errSince||0)+1;const b=$('#tbox');b.classList.remove('shake');void b.offsetWidth;b.classList.add('shake');T.wordErr=true;if(T.combo>=10)RACE.callout($('#track'),'bad','nitro lost');T.combo=0;comboUI();}
 function wordDone(){if(T.wordErr){T.wordErr=false;return;}T.combo++;T.bestCombo=Math.max(T.bestCombo,T.combo);if(T.combo>=5)RACE.sfx.word(T.combo-5);comboUI();if(T.combo===10)RACE.callout($('#track'),'hot','nitro');else if(T.combo===20||T.combo===30)RACE.callout($('#track'),'hot',T.combo+' clean words');}
 function comboUI(){track.combo(T.combo);const me=track&&track.get('me');if(me)me.el.querySelector('.rcar').classList.toggle('nitro',T.combo>=10);}
@@ -6911,6 +6915,7 @@ function openOptions(){if((T&&T.live&&T.state!=='done')||PGAMES().some(g=>g.play
   const d=TURF.tdb();const h='<h2>Options</h2><div class="opts">'+
    '<div class="orow"><span>race quote length</span>'+seg('o-qlen',db.qlen||'any',[['short','short'],['medium','medium'],['long','long'],['any','any']])+'</div>'+
    '<div class="orow"><span>Word Turf game length</span>'+seg('o-tdur',db.turfDur||75000,[[45000,'45 s'],[75000,'75 s'],[120000,'2 min']])+'</div>'+
+   '<div class="orow"><span>wrong letters (Pace Race)</span>'+seg('o-stop',db.stopErr?1:0,[[0,'show them, fix with Backspace'],[1,'block them']])+'<span class="sub" style="font-size:.85rem">block: a wrong key does not go in, it just counts as a miss</span></div>'+
    '<div class="orow"><span>fair start (live)</span>'+seg('o-hcap',HCAP?1:0,[[1,'on'],[0,'off']])+'<span class="sub" style="font-size:.85rem">the faster typist waits a little at the start</span></div>'+
    '<div class="orow"><span>skill check</span><button id="o-skill">'+(sdb()?'retake':'take it')+' (one minute)</button><span class="sub" style="font-size:.85rem">'+skillLine()+'</span></div>'+
    '<div class="orow"><span>sound</span>'+seg('o-snd',RACE.sfx.on?1:0,[[1,'on'],[0,'off']])+'</div>'+
@@ -6920,7 +6925,7 @@ function openOptions(){if((T&&T.live&&T.state!=='done')||PGAMES().some(g=>g.play
    '<div><button id="b-cancel">done</button></div></div>';
   lobby(h);XG.forEach(g=>{if(g.wireOpts)g.wireOpts(openOptions);});
   const wire=(id,fn)=>$('#'+id).querySelectorAll('button').forEach(b=>b.onclick=()=>{$('#'+id).querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));fn(b.dataset.v);save();renderHome();});
-  wire('o-qlen',v=>{db.qlen=v;});wire('o-tdur',v=>{db.turfDur=+v;TURF.cfg.dur=+v;});wire('o-hcap',v=>{HCAP=v==='1';db.hcap=HCAP;});wire('o-snd',v=>{RACE.sfx.set(v==='1');});$('#o-skill').onclick=()=>{if(inRoom())roomUI();else $('#lobby').hidden=true;skillCheck();};
+  wire('o-qlen',v=>{db.qlen=v;});wire('o-tdur',v=>{db.turfDur=+v;TURF.cfg.dur=+v;});wire('o-stop',v=>{db.stopErr=v==='1';});wire('o-hcap',v=>{HCAP=v==='1';db.hcap=HCAP;});wire('o-snd',v=>{RACE.sfx.set(v==='1');});$('#o-skill').onclick=()=>{if(inRoom())roomUI();else $('#lobby').hidden=true;skillCheck();};
   $('#o-rrace').onclick=e=>twoStep(e.currentTarget,'click again to reset the race',()=>{Object.assign(db,{tests:[],ghosts:{},target:40,sameTx:0,streak:0,best:0,live:{w:0,l:0}});save();renderHome();toast('Race progress reset.');openOptions();});
   $('#o-rturf').onclick=e=>twoStep(e.currentTarget,'click again to reset Word Turf',()=>{db.turf=null;save();TURF.tdb();save();renderHome();if(GAME==='turf')renderTurfHome();toast('Word Turf record reset.');openOptions();});
   $('#o-rprof').onclick=e=>twoStep(e.currentTarget,'click again to reset your level',()=>{db.profile=null;save();paintBadge();renderHome();toast('Level, xp, achievements and quests reset.');openOptions();});
