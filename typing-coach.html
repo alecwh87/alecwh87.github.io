@@ -886,13 +886,13 @@ function pickFrom(list,used){if(!list||!list.length)return null;const common=lis
 function statRows(map,min){return Object.entries(map).filter(([k,s])=>s.n>=min);}
 function composite(s,m,sd){return (s.ema-m)/(sd||1)+3*(s.err/(s.n+s.err));}
 function refreshTargets(){
-  const bg=statRows(db.bigrams,8).filter(([k])=>/^[a-z]{2}$|^ [a-z]$|^[a-z] $/.test(k));
-  const ky=statRows(db.keys,5).filter(([k])=>k!==' ');
+  const bg=statRows(db.bigrams,8).filter(([k])=>/^[a-z]{2}$|^ [a-z]$|^[a-z] $/.test(k)&&!hasMod(k));
+  const ky=statRows(db.keys,5).filter(([k])=>k!==' '&&!hasMod(k));
   const now=Date.now();const list=db.targets||[];
   const med=median(ky.map(([k,s])=>s.ema))||0;const bmed=median(bg.map(([k,s])=>s.ema))||0;
-  const tix=db.tests.length;const tg=statRows(db.trigrams||{},5).filter(([k])=>/^[a-z]{3}$/.test(k));const tmed=median(tg.map(([k,s])=>s.ema))||0;
+  const tix=db.tests.length;const tg=statRows(db.trigrams||{},5).filter(([k])=>/^[a-z]{3}$/.test(k)&&!hasMod(k));const tmed=median(tg.map(([k,s])=>s.ema))||0;
   for(const t of list){if(t.kind==='word')continue;if(t.kind==='pair'){const sb=(db.subs||{})[t.item];const recent=sb?sb.at.filter(i=>i>tix-12).length:0;t.good=recent===0?(t.good||0)+1:0;continue;}const s=statsFor(t.item);if(!s)continue;const good=s.ema<1.1*(t.item.length===3?tmed:t.item.length===2?bmed:med)&&s.err/(s.n+s.err)<0.04;t.good=good?(t.good||0)+1:0;}
-  let keep=list.filter(t=>t.good<2);const have=new Set(keep.map(t=>t.item));
+  let keep=list.filter(t=>t.good<2&&!(t.kind!=='word'&&t.kind!=='pair'&&/^[a-z ]+$/.test(t.item)&&hasMod(t.item)));const have=new Set(keep.map(t=>t.item));
   const cands=[];const totalKs=db.tests.reduce((a,t)=>a+(t.ks||0),0);
   if(totalKs>=1200&&bg.length>=20){const vals=bg.map(([k,s])=>s.ema);const m=mean(vals),sd=sdPop(vals);bg.forEach(([k,s])=>{const c=composite(s,m,sd);const er=s.err/(s.n+s.err);if(c>1.0&&(s.ema>1.15*bmed||er>0.05))cands.push([k,(Math.max(0,s.ema-bmed)+300*er)*Math.max(0.2,freqRel(k)),s.ema]);});}
   if(totalKs>=1200&&ky.length>=15){const vals=ky.map(([k,s])=>s.ema);const m=mean(vals),sd=sdPop(vals);ky.forEach(([k,s])=>{const c=composite(s,m,sd);const er=s.err/(s.n+s.err);if(c>0.8&&(s.ema>1.25*med||er>0.06)&&cls(k)!=='symbol')cands.push([k,(Math.max(0,s.ema-med)+300*er)*Math.max(0.2,freqRel(k)),s.ema]);});}
@@ -1202,16 +1202,20 @@ function slowWords(){const top=new Set(W1.slice(0,400));return Object.entries(db
 function rollRate(k){const r=(db.rollBg||{})[k];return r&&r.n>=6?r.o/r.n:null;}
 function noRollKeys(){const by={};for(const k in db.rollBg||{}){const r=db.rollBg[k],a=by[k[0]]||(by[k[0]]={n:0,o:0});a.n+=r.n;a.o+=r.o;}const out=new Set((S().shiftMods||'').toLowerCase().split(''));for(const c in by)if(by[c].n>=40&&by[c].o/by[c].n<0.03)out.add(c);return out;}
 function rollTargets(){const skip=noRollKeys();const bmed=median(Object.entries(db.bigrams).filter(([k,v])=>/^[a-z]{2}$/.test(k)&&v.n>=5).map(([k,v])=>v.ema))||0;
-  const top=Object.keys(FREQ.b).filter(k=>{if(!/^[a-z]{2}$/.test(k)||skip.has(k[0]))return false;const pc=pairClass(k[0],k[1]);return pc&&pc!=='same finger'&&(BY_BIGRAM[k]||[]).some(i=>i<W1.length);}).sort((a,b)=>FREQ.b[b]-FREQ.b[a]).slice(0,40);
+  const top=Object.keys(FREQ.b).filter(k=>{if(!/^[a-z]{2}$/.test(k)||skip.has(k[0])||skip.has(k[1]))return false;const pc=pairClass(k[0],k[1]);return pc&&pc!=='same finger'&&(BY_BIGRAM[k]||[]).some(i=>i<W1.length);}).sort((a,b)=>FREQ.b[b]-FREQ.b[a]).slice(0,40);
   return top.map(k=>{const r=rollRate(k),b=db.bigrams[k],slow=b&&b.n>=5&&bmed?Math.min(2,b.ema/bmed):1;if(r!=null&&r>=0.45&&slow<=1)return [k,0];return [k,FREQ.b[k]*slow*(1-0.6*(r==null?0.2:r))*(pairClass(k[0],k[1])==='outward roll'?0.7:1)];}).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]).slice(0,6).map(x=>x[0]);}
 /* each carrier word three times, four words apart: the repeats build the word into one movement, and spacing them among other words
    makes it stick better than three in a row (contextual interference, Shea and Morgan 1979) */
 function rollText(count,tg){const used=new Set(),out=[];let i=0,g=0;while(out.length<count&&g++<200){const grp=[];while(grp.length<4&&g++<200){const w=tg.length?pickFrom(BY_BIGRAM[tg[i++%tg.length]],used):W1[rnd(300)];if(w&&!grp.includes(w)){grp.push(w);used.add(w);}}if(used.size>40)used.clear();out.push(...grp,...grp,...grp);}return out.slice(0,count);}
-/* home-row Shift letters send on release, so the gap into them includes the whole hold. Compare pairs into F/J with pairs into the
-   other index-finger keys (same fingers, so letter skill is matched) */
-function fjPenalty(){const mods=(S().shiftMods||'').toLowerCase();if(!mods)return null;const into=[],ctl=[];let ei=0,ni=0,ec=0,nc=0;
-  Object.entries(db.bigrams).forEach(([k,v])=>{if(v.n<5||!/^[a-z]{2}$/.test(k)||mods.includes(k[0]))return;const fi=finger(k[1]);if(fi!==3&&fi!==4)return;if(mods.includes(k[1])){into.push(v.ema);ei+=v.err;ni+=v.n+v.err;}else{ctl.push(v.ema);ec+=v.err;nc+=v.n+v.err;}});
-  if(into.length<4||ctl.length<8)return null;const a=median(into),b=median(ctl);const l=last10(),w=l?l.wpm:60,late=Math.max(0,a-b)/1000*10;return {into:r0(a),other:r0(b),pct:r0(100*(a/b-1)),eInto:r1(100*ei/Math.max(1,ni)),eOther:r1(100*ec/Math.max(1,nc)),n:into.length,wpm:r1(w-100/(100/w+late/60))};}
+/* home-row Shift letters reach the screen on release: the gap INTO them looks long and the gap OUT of them looks short by about
+   the same amount, so the net cost is the sum of both differences against the other index-finger keys (same fingers, matched skill) */
+const modLetters=()=>(S().shiftMods||'').toLowerCase();
+const hasMod=k=>[...k].some(c=>modLetters().includes(c));
+function fjPenalty(){const mods=modLetters();if(!mods)return null;const ix=[],ic=[],ox=[],oc=[];
+  Object.entries(db.bigrams).forEach(([k,v])=>{if(v.n<5||!/^[a-z]{2}$/.test(k))return;const a=mods.includes(k[0]),b=mods.includes(k[1]);if(a&&b)return;
+    if(!a){const fi=finger(k[1]);if(fi===3||fi===4)(b?ix:ic).push(v.ema);}if(!b){const fi=finger(k[0]);if(fi===3||fi===4)(a?ox:oc).push(v.ema);}});
+  if(ix.length<4||ic.length<8||ox.length<4||oc.length<8)return null;const late=median(ix)-median(ic),early=median(oc)-median(ox),net=late-early;
+  const l=last10(),w=l?l.wpm:60,cost=Math.max(0,net)/1000*10;return {late:r0(late),early:r0(early),net:r0(net),wpm:r1(w-100/(100/w+cost/60))};}
 function flowPace(){const l=last10();const base=l?l.wpm:db.tests.some(t=>t.b==='speed'&&!t.steady)?speedBase()*0.85:null;return base?Math.max(10,r0(base*(db.flowF||1.03))):null;}
 /* a target under your recent clean burst speed is one you already beat: it catches up when a block starts */
 function refreshTarget(){if(db.target==null||db.target<speedBase())db.target=initialTarget();else clampTarget();db.sameTx=0;save();}
@@ -1469,7 +1473,7 @@ function renderProgress(){
     const ai=activeIssues();if(ai.length){const st=issueState(ai[0]);P.push('Biggest thing holding you back now: <b>'+esc(ai[0].label.toLowerCase())+'</b> ('+esc(ai[0].fmt(st.v))+(ai[0].id==='acc'?' in the accuracy tests':'')+', last session). Your sessions already work on it; the table below says how.');}
     const rr=db.tests.filter(t=>(t.b==='bench'||t.b==='acc')&&t.roll!=null).slice(-10);if(rr.length>=3)P.push('You <b>roll</b> (the next key goes down before the last one comes up) on <b>'+r0(mean(rr.map(t=>t.roll)))+'%</b> of keystrokes. The fastest typists do it on 40 to 70%.');
     if(db.target)P.push('Your speed-drill target is <b>'+db.target+' words a minute</b>, mistakes taken out. It goes up as you pass and down when the errors pile up.');
-    {const fj=fjPenalty();if(fj&&fj.pct>=15)P.push('The letters '+esc((s.shiftMods||'').toUpperCase().split('').join(' and '))+' reach the screen late, because they double as Shift and the keyboard waits until you let go. They are only about 2% of letters, so this costs you about <b>'+fj.wpm+' word'+(fj.wpm===1?'':'s')+' a minute</b>; slow capitals cost more.');}
+    {const fj=fjPenalty();if(fj&&fj.net>=30)P.push('The letters '+esc((s.shiftMods||'').toUpperCase().split('').join(' and '))+' cost you about <b>'+fj.net+' ms each</b> because they double as Shift, about '+fj.wpm+' word'+(fj.wpm===1?'':'s')+' a minute in all.');}
     if(!db.corpus)P.push('Tip: paste a page of your own writing (emails, chats, prompts) under Settings. The accuracy and flow tests then use your own words, which is the practice that carries over best to your day.');
     P.push('Expect slow, uneven gains: a flat week or two is normal at this level. Judge the trend over a month, not a day.');
     P.push('Times are in <b>ms</b>, thousandths of a second: 200 ms is a fifth of a second. Smaller is faster.');
@@ -1522,7 +1526,7 @@ function renderProgress(){
   const K=$('#keymap');const caps=Object.keys(db.keys).filter(k=>/[A-Z]/.test(k)&&db.keys[k].n>=5).sort();const syms=Object.keys(db.keys).filter(k=>cls(k)==='symbol'&&db.keys[k].n>=5).sort();
   const row=chars=>'<div class="krow">'+chars.map(c=>{const v=db.keys[c];const ok=v&&v.n>=5;const r=ok?v.ema/med:1;return '<div class="key '+(ok?'':'nd')+'" style="background:'+(ok?heatColor(r):'var(--card2)')+'" title="'+(ok?r0(v.ema)+' ms, '+v.err+' errors in '+(v.n+v.err):'not enough data')+'">'+esc(c)+(ok?'<small>'+r0(v.ema)+'</small>':'')+'</div>';}).join('')+'</div>';
   K.innerHTML=GRID.map(r=>row(r.split(''))).join('')+(caps.length?'<div class="lbl" style="margin-top:.4rem">capitals</div>'+row(caps):'')+(syms.length?'<div class="lbl" style="margin-top:.4rem">symbols</div>'+row(syms):'');
-  const bg=Object.entries(db.bigrams).filter(([k,v])=>v.n>=5&&!k.includes(' ')).sort((a,b)=>b[1].ema-a[1].ema).slice(0,10);
+  const bg=Object.entries(db.bigrams).filter(([k,v])=>v.n>=5&&!k.includes(' ')&&!hasMod(k.toLowerCase())).sort((a,b)=>b[1].ema-a[1].ema).slice(0,10);
   $('#bigrams').innerHTML='<tr><th>pair</th><th class="n">time</th><th class="n">mistakes</th><th class="n">seen</th></tr>'+(bg.length?bg.map(([k,v])=>'<tr><td class="mono">'+esc(k)+'</td><td class="n">'+r0(v.ema)+'</td><td class="n">'+v.err+'</td><td class="n">'+v.n+'</td></tr>').join(''):'<tr><td colspan="4" class="sub">Needs more data.</td></tr>');
   const tgr=Object.entries(db.trigrams||{}).filter(([k,v])=>v.n>=5).sort((a,b)=>b[1].ema-a[1].ema).slice(0,10);
   $('#trigrams').innerHTML='<tr><th>group</th><th class="n">time to the third letter</th><th class="n">seen</th></tr>'+(tgr.length?tgr.map(([k,v])=>'<tr><td class="mono">'+esc(k)+'</td><td class="n">'+r0(v.ema)+'</td><td class="n">'+v.n+'</td></tr>').join(''):'<tr><td colspan="3" class="sub">Needs more data.</td></tr>');
@@ -1543,7 +1547,7 @@ function renderProgress(){
   if(pc['same finger']&&pc['alternating']&&median(pc['same finger'])>1.5*median(pc['alternating']))hnotes.push('Same-finger pairs cost '+r0(median(pc['same finger'])-median(pc['alternating']))+' ms more than alternating ones. That is a layout cost; the weave only targets the worst of them.');
   if(hnotes.length)hh+='<p class="sub" style="font-size:.88rem;margin-top:.6rem">'+hnotes.join(' ')+'</p>';
   if(ft.length>=4)hh+='<table style="margin-top:.6rem"><tr><th>finger</th><th class="n">time</th><th class="n">mistakes</th></tr>'+ft.map(x=>'<tr><td>'+x.f+'</td><td class="n'+(x.ms>1.25*fmed?' err':'')+'">'+r0(x.ms)+'</td><td class="n">'+r1(100*x.er)+'%</td></tr>').join('')+'</table>';
-  {const fj=fjPenalty();if(fj)hh+='<p class="sub" style="margin-top:.8rem">Your Shift letters ('+esc((s.shiftMods||'').toUpperCase().split('').join(' and '))+'): pairs typed into them take '+fj.into+' ms against '+fj.other+' ms into the other index-finger keys ('+(fj.pct>=0?'+':'')+fj.pct+'%), with '+fj.eInto+'% mistakes against '+fj.eOther+'%. '+(fj.pct>=15?'That gap is the keyboard holding the letter back until you let go. F and J are only about 2% of letters, so it costs you about '+fj.wpm+' word'+(fj.wpm===1?'':'s')+' a minute. Making them faster would make capitals harder to time, so it is not worth changing for now.':'No real penalty from the Shift keys.')+'</p>';}
+  {const fj=fjPenalty();if(fj)hh+='<p class="sub" style="margin-top:.8rem">Your Shift letters ('+esc((s.shiftMods||'').toUpperCase().split('').join(' and '))+'): the keyboard holds them until you let go, so they reach the screen about '+fj.late+' ms late, and the next letter then follows '+fj.early+' ms sooner than usual. Net: '+fj.net+' ms each. '+(fj.net>=30?'That costs you about '+fj.wpm+' word'+(fj.wpm===1?'':'s')+' a minute.':'The delay only moves when the letter appears; it does not slow you down. Pairs with these letters are left out of your practice targets, because their timing is shifted.')+'</p>';}
   $('#p-hands').innerHTML=(same.length||ft.length)?hh:'<span class="sub">Needs more data.</span>';
   /* blocks tab */
   if(agg){const holds=db.tests.slice(-10).filter(t=>t.hold!=null).map(t=>t.hold);const hold=holds.length?r0(mean(holds)):null;const pens=capT.filter(t=>t.caps.pen!=null).map(t=>t.caps.pen);const half=Math.floor(pens.length/2);
