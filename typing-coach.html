@@ -92,6 +92,14 @@ body.typing header,body.typing .topbar,body.typing .tmeta{opacity:0;pointer-even
 .word.hl i:not(.ok):not(.bad){color:color-mix(in srgb,var(--fg) 88%,var(--bg))}
 .word.far i{color:transparent !important}
 .word i.ok{color:var(--fg)} .word i.bad{color:var(--err)}
+#capfb{display:flex;flex-wrap:wrap;gap:.35rem;align-items:center;margin-top:.7rem;font-size:.85rem;min-height:1.6rem}
+#capfb .cf{padding:.1rem .5rem;border-radius:4px;border:1px solid var(--card2);font-variant-numeric:tabular-nums}
+#capfb .cf.good{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 45%,var(--card2))}
+#capfb .cf.close,#capfb .cf.slow{color:color-mix(in srgb,var(--err) 50%,var(--main))}
+#capfb .cf.bad{color:var(--err);border-color:color-mix(in srgb,var(--err) 45%,var(--card2))}
+#capfb .cft{color:var(--sub);margin-right:.3rem}
+#capfb .cfn{flex-basis:100%;color:var(--fg);margin-top:.2rem}
+.word i.miss{text-decoration:underline;text-underline-offset:4px;opacity:.8}
 .word i.cur{border-left-color:var(--main);animation:blink 1s step-end infinite}
 .word.end{border-right-color:var(--main)}
 @keyframes blink{50%{border-color:transparent}}
@@ -240,6 +248,7 @@ tr.dim td{color:var(--sub)}
         <div class="rtrack" id="track" hidden></div>
         <div id="textbox" tabindex="0"><div id="words"></div><div id="count" class="rcount" hidden></div></div>
         <div id="live"><span id="l-acc"></span> <span id="l-wpm"></span> <span id="hint" class="sub">type to start</span><span id="combo" class="rcombo" style="position:static;margin-left:auto"></span></div>
+        <div id="capfb" hidden></div>
         <div class="src" id="t-src"></div>
       </div>
       <div class="card" id="results" hidden></div>
@@ -390,7 +399,7 @@ tr.dim td{color:var(--sub)}
       <li><b>It measures your eye-hand span.</b> A one-minute check with 0 to 3 words of preview, after Salthouse's preview-window method, shows whether you actually read ahead and whether the read-ahead option is worth your time.</li>
       <li><b>It keeps a ledger of what slows you down.</b> At the end of every session twelve measures are checked against norms from the typing literature: accuracy, correction load (keys per character) and backspaces per error, speed lost to errors, hesitation at word starts and before symbols, the cost of capitals, early letters and transpositions, whether errors follow a rhythm wobble (Kalfaoglu and Stafford 2014), how fast you recover after a fix (Crump and Logan 2013), keystroke overlap, and dropped mod letters. Each flagged issue changes the next session: read-ahead switched on, a pace line to hold you back, extra Shift or symbol tests, word-delete corrections. The ledger shows when each issue was first seen and whether it is fading.</li>
       <li><b>It trains the moves, not just the letters.</b> Most of a day at a keyboard is editing and moving, not typing fresh text. The editing block gives you a task in a real text field, times the move, and repeats the slow ones. The symbols block uses the characters of chat, notes and email rather than code unless you turn code on.</li>
-      <li><b>Accuracy counts every wrong key, fixed or not.</b> That is Monkeytype's definition and it is the right one: across 168,000 typists, the share of keypresses spent correcting predicted speed better than the errors left in the text (r = 0.36 against 0.21), and the fastest tenth press 1.10 keys per character where the slowest press 1.24 (Dhakal, Feit, Kristensson and Oulasvirta 2018). A fixed error still costs the wrong key, the backspaces, the retype and a broken rhythm. The aim is a first pass that needs no fixing; the keys-per-character number on every result shows the whole cost.</li>
+      <li><b>Accuracy counts every slip, fixed or not, and each slip once.</b> A dropped or doubled letter or a missed space shifts every letter after it; those letters are counted as right, as keybr does, so one slip costs one error and the error lists name the key you really missed. Fixed slips still count: across 168,000 typists, the share of keypresses spent correcting predicted speed better than the errors left in the text (r = 0.36 against 0.21), and the fastest tenth press 1.10 keys per character where the slowest press 1.24 (Dhakal, Feit, Kristensson and Oulasvirta 2018). A fixed error still costs the wrong key, the backspaces, the retype and a broken rhythm. The aim is a first pass that needs no fixing; the keys-per-character number on every result shows the whole cost.</li>
       <li><b>It can train on your own words.</b> Paste a page of what you really type into Settings and most accuracy tests are built from your own sentences; your own frequent words are tracked and woven in. Skilled speed is word-level chunks (Logan and Crump 2011), and the chunks that pay are the words you use.</li>
       <li><b>It measures composing, not only copying.</b> A compose block in every session: ninety seconds of writing to a prompt with no target text. It separates thinking time from typing time and counts revisions, so you can see whether the keyboard is the bottleneck at all. The text is never stored.</li>
       <li><b>It checks whether you look at the keyboard.</b> A covered-hands check: one 30-second test uncovered, one with a towel over the hands. Gaze shifts to the keyboard track the gap between keys (Feit, Weir and Oulasvirta 2016). If covering costs you speed, the warm-up asks for covered hands for two weeks.</li>
@@ -829,7 +838,7 @@ const BLOCKS={
  speed:{id:'speed',name:'Speed',dur:30,text:'easy',stop:'off',pace:true,why:'Thirty-second bursts in pairs. First a steady burst: the pace line runs at 90% of your target and the job is a clean, even rhythm, partly on the common words you type slowest. Then a stretch burst at your target, a few percent above your recent clean speed. Only correct letters count, so errors never help. A stretch passes at the target with 95% accuracy. Two passes in a row move the target up one, or straight to 3% above your recent clean speed when you have outgrown it; a burst under 95% accuracy brings it down one at once (under 90% down two, and a steady burst under 95% down one), and two clean misses down one.'},
  flow:{id:'flow',name:'Flow',dur:180,text:'flow',stop:'off',why:'Three minutes of real sentences, capitals and punctuation included: your own writing when you have pasted some in, otherwise everyday sentences of the kind you write in chats, emails and prompts. A pace line runs just above your real-text speed and moves with you: up 3% after a clean run that keeps up, down 3% when accuracy falls under 93%, never below your real-text speed. Mistakes do not stop you. Long runs of real text are where whole words become single movements, and practice transfers best to the kind of typing it looks like (Logan and Crump 2011).'},
  rolls:{id:'rolls',name:'Rolls',dur:45,text:'rolls',stop:'off',why:'Forty-five seconds of common words carrying the letter pairs that are slowest for you, out of the forty most frequent pairs typed by two different fingers. Each word comes three times, a few words apart, and each try should be faster than the last: repetition under speed pressure is how a word turns into one movement, and spacing the tries among other words makes it stick better than three in a row, and the overlap of fast typists (40 to 70% of their keys, Dhakal 2018) comes from that. Mistakes do not stop you. Afterwards you see the time between the two keys of each pair, which is the real measure, and how often they overlapped.'},
- shift:{id:'shift',name:'Shift',dur:30,text:'caps',stop:'word',why:'Words with many capitals and some CamelCase, to train the home-row Shift. Order: gap, mod down, letter down, letter up, mod up. Every capital is checked and every failure is named.'},
+ shift:{id:'shift',name:'Shift',dur:30,text:'caps',stop:'word',why:'Words with many capitals. Every capital is marked as you type it: green when the letter came up before F or J, which gives an instant capital; amber when it was only just, or when F or J came up first and the keyboard made you wait; red when it failed. The one rule: letter up first, then F or J.'},
  code:{id:'code',name:'Code',dur:30,text:'code',stop:'word',why:'Real code lines from the Monkeytype code sets, chosen for the symbols you are slow on.'},
  daily:{id:'daily',name:'Everyday symbols',dur:30,text:'daily',stop:'word',why:'The symbols of chat, notes and email: apostrophes, quotes, parentheses, at-signs, slashes, times, prices, addresses. Weighted to the ones you are slow on.'},
  edit:{id:'edit',name:'Editing',dur:60,text:'edit',stop:'off',why:'A task in a real text field: delete the last word, jump to the start, select a word, fix a typo. Timed per move; the slow moves come back more often. These are the keys on your navigation layer.'},
@@ -1061,6 +1070,7 @@ function newTest(block){
   document.body.classList.remove('typing');
   $('#results').hidden=true;$('#testcard').hidden=false;
   if(block.id==='speed'&&db.target==null)db.target=initialTarget();T.steady=block.id==='speed'&&burstSteady();T.paceWpm=T.steady?Math.max(10,r0(db.target*0.9)):block.pace?db.target:block.id==='flow'?flowPace():(block.id==='acc'?accCeil():null);
+  {const F=$('#capfb');F.innerHTML='';F.hidden=block.id!=='shift';}
   $('#t-mode').textContent=block.name.toLowerCase()+(T.timed?' · '+block.dur+' seconds':' · the whole quote')+' · '+(block.stop==='word'?'an error stops the word':block.id==='speed'?(T.steady?'steady burst':'stretch burst'):'mistakes do not stop you');setInstr(block);
   $('#t-target').textContent=block.id==='blind'?(session&&session.ti===1?'now put a towel over your hands, then type':'hands uncovered first'):block.id==='span'?(session?session.ti:0)+' word'+((session?session.ti:0)===1?'':'s')+' of preview':T.steady?('pace line at '+T.paceWpm+' wpm: smooth and clean, nothing to beat'):block.id==='speed'?('target '+db.target+' clean wpm, '+S().speedAcc+'% accuracy'):block.pace?('target '+db.target+' wpm'+((db.sameTx||0)?' \u00b7 same text, try '+((db.sameTx||0)+1):'')):T.paceWpm?('pace line at '+T.paceWpm+' wpm, stay with it'):(block.id==='bench'?'unaltered text, this is the score':block.id==='code'?'symbol layers':'accuracy goal '+S().accGoal+'%');
   if(block.id==='warm'&&db.blind&&db.blind.looks&&Date.now()<db.blind.t+14*86400000)$('#t-target').textContent='cover your hands for this one';
@@ -1073,10 +1083,15 @@ function newTest(block){
   if(block.id==='race')raceSetup();else{$('#track').hidden=true;$('#count').hidden=true;$('#combo').textContent='';}
 }
 function renderWord(i){const el=wordEls[i];if(!el)return;const w=T.words[i],t=T.typed[i];let h='';
-  for(let k=0;k<w.length;k++){let c=w[k],cl='';if(k<t.length){if(t[k]===c)cl='ok';else{cl='bad';c=t[k];}}else if(k===t.length&&i===T.wi)cl='cur';h+='<i class="'+cl+'">'+esc(c)+'</i>';}
-  for(let k=w.length;k<t.length;k++)h+='<i class="bad extra">'+esc(t[k])+'</i>';
+  /* letters are lined up the way they are counted: a dropped letter shows as one red gap, a doubled one as one red extra, and the letters after it stay right */
+  const fit=(k,j)=>{let n=0;for(let q=0;q<3&&k+q<t.length;q++)if(t[k+q]===w[j+q])n++;return n;};let j=0,k=0;
+  while(k<t.length&&j<w.length){if(t[k]===w[j]){h+='<i class="ok">'+esc(w[j])+'</i>';j++;k++;continue;}
+    const sub=fit(k+1,j+1),skip=fit(k,j+1),extra=fit(k+1,j);
+    if(skip>sub&&skip>=extra){h+='<i class="bad miss">'+esc(w[j])+'</i>';j++;}else if(extra>sub){h+='<i class="bad extra">'+esc(t[k])+'</i>';k++;}else{h+='<i class="bad">'+esc(t[k])+'</i>';j++;k++;}}
+  const reach=j;for(;j<w.length;j++)h+='<i class="'+(j===reach&&i===T.wi?'cur':'')+'">'+esc(w[j])+'</i>';
+  for(;k<t.length;k++)h+='<i class="bad extra">'+esc(t[k])+'</i>';
   const hm=S().highlight||'next_word';const span=hm==='letter'?-1:hm==='word'?0:hm==='next_word'?1:2;const hl=i>=T.wi&&i<=T.wi+span;const far=T.block.id==='span'&&session&&i>T.wi+session.ti;
-  el.innerHTML=h;el.className='word'+(i===0?' first':'')+(i===T.wi?' active':'')+(hl?' hl':'')+(far?' far':'')+(i<T.wi&&t!==w?' err':'')+(i===T.wi&&t.length>=w.length?' end':'')+(i===T.wi&&T.reveal?' reveal':'');}
+  el.innerHTML=h;el.className='word'+(i===0?' first':'')+(i===T.wi?' active':'')+(hl?' hl':'')+(far?' far':'')+(i<T.wi&&t!==w?' err':'')+(i===T.wi&&reach>=w.length?' end':'')+(i===T.wi&&T.reveal?' reveal':'');}
 function scrollWords(){const el=wordEls[T.wi];if(!el)return;const lh=parseFloat(getComputedStyle($('#words')).lineHeight);$('#words').style.transform='translateY('+(-Math.max(0,el.offsetTop-lh))+'px)';}
 function flash(){const b=$('#textbox');b.classList.remove('shake');void b.offsetWidth;b.classList.add('shake');}
 function push(m,k,v){(m[k]=m[k]||[]).push(v);}function inc(m,k){m[k]=(m[k]||0)+1;}
@@ -1100,15 +1115,24 @@ function onChar(ch,code){
   const iki=T.lastDown?now-T.lastDown:null;T.lastDown=now;
   const word=T.words[T.wi],typed=T.typed[T.wi];const b=bucket(now);
   if(ch===' '){if(typed.length===0)return;const ok=typed===word;T.keystrokes++;T.sec[b]++;
-    if(!ok&&T.block.stop==='word'){T.incorrect++;T.esec[b]++;flash();recErr(' ',iki);return;}
+    const slip=!ok&&!word.startsWith(typed);
+    if(!ok&&T.block.stop==='word'){if(slip){T.keystrokes--;T.sec[b]--;flash();return;}T.incorrect++;T.esec[b]++;flash();recErr(' ',iki);return;}
     const base=word.toLowerCase().replace(/^[^a-z]+|[^a-z]+$/g,'');
-    if(ok){T.correct++;recOk(' ',iki);while(T.csec.length<=b)T.csec.push(0);T.csec[b]+=word.length+1;const st=T.wt[T.wi][0];if((W1SET.has(base)||MY.set.has(base))&&st&&now>st&&!T.werr[T.wi])push(T.wb,base,(word.length+1)/5/((now-st)/60000));}else{T.incorrect++;T.esec[b]++;recErr(' ',iki);T.missed.push(word);}
+    if(ok){T.correct++;recOk(' ',iki);while(T.csec.length<=b)T.csec.push(0);T.csec[b]+=word.length+1;const st=T.wt[T.wi][0];if((W1SET.has(base)||MY.set.has(base))&&st&&now>st&&!T.werr[T.wi])push(T.wb,base,(word.length+1)/5/((now-st)/60000));}else if(slip){T.correct++;T.prev2=T.prevExp;T.prev2Ok=T.prevOk;T.prevExp=' ';T.prevOk=false;T.missed.push(word);}else{T.incorrect++;T.esec[b]++;recErr(' ',iki);T.missed.push(word);}
     if(T.werr[T.wi]&&(W1SET.has(base)||MY.set.has(base)))inc(T.we,base);
     if(T.race)raceWord(!T.werr[T.wi]);T.wt[T.wi][1]=now;T.wi++;T.reveal=false;if(T.wi>=T.words.length){endTest();return;}
     T.wt[T.wi][0]=now;for(let k=T.wi-1;k<=T.wi+5;k++)renderWord(k);scrollWords();return;}
   const idx=typed.length,exp=word[idx];T.keystrokes++;T.sec[b]++;
+  /* one slip, one error (keybr's "forgive errors"): once a word holds a mistake, a key that fits the text shifted by one place,
+     after a dropped, doubled or wrong letter or a missed space, counts as right and stays out of the error statistics */
+  if(!word.startsWith(typed)&&!(exp===undefined&&idx-word.length>=5)){const tgt=word+' '+(T.words[T.wi+1]||'');
+    if([0,1,-1].some(o=>tgt[idx+o]===ch)||(idx>0&&/[A-Z]/.test(tgt[idx-1])&&tgt[idx-1].toLowerCase()===ch)){T.typed[T.wi]=typed+ch;T.correct++;T.prev2=T.prevExp;T.prev2Ok=T.prevOk;T.prevExp=ch;T.prevOk=false;
+      const ex=T.typed[T.wi].slice(word.length),nx=T.words[T.wi+1];
+      /* a missed space in a test that does not stop: move to the next word so the rest of the text stays in step */
+      if(T.block.stop==='off'&&nx&&ex.length>=2&&T.typed[T.wi].slice(0,word.length)===word&&nx.startsWith(ex)){T.typed[T.wi]=word;if(T.race)raceWord(false);T.wt[T.wi][1]=now;T.wi++;T.reveal=false;T.wt[T.wi][0]=now;T.typed[T.wi]=ex;for(let k=T.wi-1;k<=T.wi+5;k++)renderWord(k);scrollWords();return;}
+      renderWord(T.wi);return;}}
   if(exp===undefined){if(idx-word.length>=5)return;T.typed[T.wi]=typed+ch;T.incorrect++;T.esec[b]++;T.werr[T.wi]++;inc(T.errT,'extra');recErr(' ',iki);}
-  else if(ch===exp){T.typed[T.wi]=typed+ch;T.correct++;if(T.race)RACE.sfx.key();if(/[A-Z]/.test(exp)){const cr={ok:true,code,letterUp:0,tail:null,h:hand(exp)};T.caps.push(cr);T.capPending=cr;if(iki!==null&&iki<1500&&T.prevOk)T.capIki.push(iki);}else if(/[a-z]/.test(exp)&&iki!==null&&iki<1500&&T.prevOk)T.lowIki.push(iki);recOk(exp,iki);}
+  else if(ch===exp){T.typed[T.wi]=typed+ch;T.correct++;if(T.race)RACE.sfx.key();if(/[A-Z]/.test(exp)){const cr={ok:true,code,letterUp:0,tail:null,h:hand(exp),ch:exp};T.caps.push(cr);T.capPending=cr;if(iki!==null&&iki<1500&&T.prevOk)T.capIki.push(iki);}else if(/[a-z]/.test(exp)&&iki!==null&&iki<1500&&T.prevOk)T.lowIki.push(iki);recOk(exp,iki);}
   else{T.typed[T.wi]=typed+ch;T.incorrect++;T.esec[b]++;T.werr[T.wi]++;let et=errType(word,idx,ch);
     if(T.pendTrans&&T.pendTrans.wi===T.wi&&idx===T.pendTrans.idx+1&&ch===word[T.pendTrans.idx]){et='transposition';if(T.errT.anticipation)T.errT.anticipation--;if(hand(ch)!==hand(word[idx]))T.transX++;T.pendTrans=null;}
     else T.pendTrans=et==='anticipation'?{wi:T.wi,idx}:null;
@@ -1118,10 +1142,22 @@ function onChar(ch,code){
   if(!T.timed&&T.wi===T.words.length-1&&T.typed[T.wi]===word){if(T.race)raceWord(!T.werr[T.wi]);T.wt[T.wi][1]=now;T.wi++;endTest();}
 }
 function capError(exp,ch,idx,now){const key=T.wi+':'+idx;
-  if(/[A-Z]/.test(exp)){if(T.lastCapErr&&T.lastCapErr.key===key&&now-T.lastCapErr.t<600)return;const kind=ch===exp.toLowerCase()?'early':((S().shiftMods||'').includes(ch)?'tap':'other');T.caps.push({ok:false,kind,h:hand(exp)});T.lastCapErr={key,t:now};}
-  else if(/[a-z]/.test(exp)&&ch===exp.toUpperCase())T.caps.push({ok:false,kind:'late',h:hand(exp)});}
+  if(/[A-Z]/.test(exp)){if(T.lastCapErr&&T.lastCapErr.key===key&&now-T.lastCapErr.t<600)return;const kind=ch===exp.toLowerCase()?'early':((S().shiftMods||'').includes(ch)?'tap':'other');const r={ok:false,kind,h:hand(exp),ch:exp,got:ch};T.caps.push(r);capFb(r);T.lastCapErr={key,t:now};}
+  else if(/[a-z]/.test(exp)&&ch===exp.toUpperCase()){const r={ok:false,kind:'late',h:hand(exp),ch:exp};T.caps.push(r);capFb(r);}}
+/* Shift tests: every capital gets a verdict the moment it is done, so the timing is learnt and not only repeated.
+   The keyboard gives the capital at once only when the letter comes up before the Shift key (F or J). If F or J comes up first,
+   it either waits out the 280 ms tapping term (a slow capital) or types its own letter (a failed one): the same mistake, two outcomes. */
+function capFb(r){if(!T.block||T.block.id!=='shift')return;const F=$('#capfb');if(!F)return;const m=(S().shiftMods||'fj').toUpperCase();const mod=r.h==='L'?m[1]:m[0];let cl,txt,tip;
+  if(r.ok){if(r.tail==null)return;if(r.tail>=20){cl='good';txt='+'+r0(r.tail);tip='';}
+    else if(r.tail>=0){cl='close';txt='+'+r0(r.tail);tip='Just in time: '+mod+' came up only '+r0(r.tail)+' ms after the letter. Hold it a moment longer.';}
+    else{cl='slow';txt='slow';tip=mod+' came up before the letter, so the keyboard waited 280 ms before giving you the capital. Let the letter up first, then '+mod+'.';}}
+  else{cl='bad';const got=r.got||mod.toLowerCase();txt={tap:'got '+got,early:'lowercase',late:'stuck'}[r.kind]||'miss';
+    tip={tap:got.toUpperCase()+' came up before the letter: the keyboard typed '+got+'. Let the letter up first, then '+mod+'.',early:mod+' was already up when the letter went down. Press the letter while '+mod+' is still down.',late:mod+' was still down at the next letter. Let go right after the capital.'}[r.kind]||'Wrong key.';}
+  [...F.querySelectorAll('.cft,.cfn')].forEach(x=>x.remove());F.insertAdjacentHTML('beforeend','<span class="cf '+cl+'">'+esc(r.ch)+' '+txt+'</span>');while(F.querySelectorAll('.cf').length>12)F.querySelector('.cf').remove();
+  const done=T.caps.filter(x=>x.kind!=='drop'&&(!x.ok||x.tail!=null)),good=done.filter(x=>x.ok&&x.tail>=20).length;
+  F.insertAdjacentHTML('afterbegin','<span class="cft">letter up first, then '+esc(m[0])+' or '+esc(m[1])+': '+good+' of '+done.length+'</span>');F.insertAdjacentHTML('beforeend','<div class="cfn">'+esc(tip)+'</div>');}
 function capsSummary(){const c={n:0,ok:0,early:0,tap:0,late:0,other:0,drop:0,slow:0,failL:0,failR:0,pen:null,tail:null};if(!T.caps.length)return null;
-  T.caps.forEach(x=>{if(x.kind==='drop'){c.drop++;return;}c.n++;if(x.ok){c.ok++;if(x.tail!=null&&x.tail<0)c.slow++;}else{c[x.kind]=(c[x.kind]||0)+1;if(x.kind!=='late')c[x.h==='L'?'failL':'failR']++;}});if(!c.n&&!c.drop)return null;
+  T.caps.forEach(x=>{if(x.kind==='drop'){c.drop++;return;}c.n++;if(x.ok){c.ok++;if(x.tail!=null&&x.tail<0)c.slow++;if(x.tail!=null&&x.tail>=20)c.clean=(c.clean||0)+1;}else{c[x.kind]=(c[x.kind]||0)+1;if(x.kind!=='late')c[x.h==='L'?'failL':'failR']++;}});if(!c.n&&!c.drop)return null;
   if(T.capIki.length>=3&&T.lowIki.length>=10)c.pen=r0(median(T.capIki)-median(T.lowIki));
   const tails=T.caps.filter(x=>x.ok&&x.tail!=null).map(x=>x.tail);if(tails.length>=3)c.tail=r0(median(tails));return c;}
 function shiftVerdict(c){
@@ -1149,12 +1185,9 @@ function countChars(input,target,creditPartial){let allCorrect=0,correctWord=0,i
     if(ic===tc){if(tc===' '&&!wordCorrect)extra++;else allCorrect++;if(wordCorrect||(creditPartial&&partial))correctWord++;}
     else if(ic===undefined){if(!creditPartial)missed++;}else if(tc===undefined||(tc===' '&&ic!==' '&&!input.includes(' ')))extra++;else incorrect++;}
   return {allCorrect,correctWord,incorrect,extra,missed};}
-/* letters typed in order but shifted by a dropped or doubled letter: credit them back so one slip costs one error */
-function lcs(a,b){let p=new Array(b.length+1).fill(0);for(let i=1;i<=a.length;i++){const c=new Array(b.length+1).fill(0);for(let j=1;j<=b.length;j++)c[j]=a[i-1]===b[j-1]?p[j-1]+1:Math.max(p[j],c[j-1]);p=c;}return p[b.length];}
-function realign(last){let g=0;for(let i=0;i<=last;i++){const a=T.typed[i]||'',w=T.words[i]||'';if(!a||a===w)continue;let pos=0;for(let j=0;j<a.length;j++)if(a[j]===w[j])pos++;g+=Math.max(0,lcs(a,w)-pos);}return g;}
 function metrics(endAt){const end=endAt||T.ended;const secs=(end-T.started)/1000;const c={allCorrect:0,correctWord:0,incorrect:0,extra:0,missed:0};const last=Math.min(T.wi,T.words.length-1);
   for(let i=0;i<=last;i++){const done=i<T.wi;const sp=done&&i<T.words.length-1;const target=T.words[i]+(sp?' ':'');const input=T.typed[i]+(sp?' ':'');if(!done&&!T.typed[i].length)break;const r=countChars(input,target,!done&&T.timed);for(const k in c)c[k]+=r[k];}
-  const wpm=secs>0?c.correctWord/5/(secs/60):0,raw=secs>0?(c.allCorrect+c.incorrect+c.extra)/5/(secs/60):0;const acc=T.keystrokes?100*Math.min(T.keystrokes,T.correct+(T.block&&T.block.stop==='off'?realign(last):0))/T.keystrokes:0;
+  const wpm=secs>0?c.correctWord/5/(secs/60):0,raw=secs>0?(c.allCorrect+c.incorrect+c.extra)/5/(secs/60):0;const acc=T.keystrokes?100*Math.min(T.keystrokes,T.correct)/T.keystrokes:0;
   const bursts=T.sec.map((n,i)=>{const dur=i<T.sec.length-1?1:Math.max(0.2,secs-i);return Math.round(n/5/(dur/60));});
   const cons=bursts.length>1&&mean(bursts)>0?Math.max(0,Math.min(100,kogasa(sdPop(bursts)/mean(bursts)))):0;
   const sp=T.ikis.slice(0,-1);const keyCons=sp.length>1&&mean(sp)>0?Math.max(0,Math.min(100,kogasa(sdPop(sp)/mean(sp)))):0;
@@ -1236,7 +1269,7 @@ function showResults(rec,m){
   h+='<div><div class="lbl">'+(b.id==='speed'?'clean wpm':'wpm')+'</div><div class="huge '+(b.id==='speed'?(rec.pass?'ok':'err'):'')+'">'+r0(b.id==='speed'?rec.clean:m.wpm)+'</div>'+(b.id==='speed'?'<div class="sub">raw '+r0(m.raw)+', net '+r0(m.wpm)+'</div>':'')+'</div>';
   h+='<div><div class="lbl">acc</div><div class="huge" style="font-size:2.6rem'+(m.acc<s.accGoal&&b.stop==='word'?';color:var(--err)':'')+'">'+r1(m.acc)+'%</div><div class="sub">every wrong key, fixed or not</div></div>';
   if(b.id==='speed')h+='<div><div class="lbl">'+(rec.steady?'steady, line ':'target ')+rec.target+'</div><div class="mid '+(rec.pass?'ok':'err')+'">'+(rec.steady?(rec.pass?'clean':'not clean'):(rec.pass?'pass':'miss'))+'</div></div>';
-  if(b.id==='shift'&&rec.caps)h+='<div><div class="lbl">capitals clean</div><div class="mid '+(rec.caps.ok===rec.caps.n?'ok':'err')+'">'+rec.caps.ok+' / '+rec.caps.n+'</div><div class="sub">'+(rec.caps.pen!=null?sms(rec.caps.pen)+' each':'')+'</div></div>';
+  if(b.id==='shift'&&rec.caps)h+='<div><div class="lbl">capitals clean</div><div class="mid '+(rec.caps.ok===rec.caps.n?'ok':'err')+'">'+rec.caps.ok+' / '+rec.caps.n+'</div><div class="sub">'+(rec.caps.pen!=null?sms(rec.caps.pen)+' each':'')+'</div></div><div><div class="lbl">letter up first</div><div class="mid">'+(rec.caps.clean||0)+' / '+rec.caps.n+'</div><div class="sub">the order that makes a capital instant</div></div>';
   h+='</div><div><canvas id="r-chart" style="height:200px"></canvas></div></div>';
   const l=last10();let v='';let quiet=true;
   if(rec.note){v=rec.note;quiet=false;}
@@ -1555,8 +1588,9 @@ function renderProgress(){
   /* blocks tab */
   if(agg){const holds=db.tests.slice(-10).filter(t=>t.hold!=null).map(t=>t.hold);const hold=holds.length?r0(mean(holds)):null;const pens=capT.filter(t=>t.caps.pen!=null).map(t=>t.caps.pen);const half=Math.floor(pens.length/2);
     const trend=pens.length>=6?(mean(pens.slice(half))-mean(pens.slice(0,half))<=-15?'falling':mean(pens.slice(half))-mean(pens.slice(0,half))>=15?'rising':'flat'):'';
-    let ph='<div class="statrow" style="margin-top:0"><div><div class="lbl">clean</div><div class="v">'+r0(100*agg.ok/agg.n)+'%</div><div class="sub">'+agg.ok+' of '+agg.n+' capitals, last '+capT.length+' tests</div></div><div><div class="lbl">cost per capital</div><div class="v">'+(agg.pen!=null?sms(agg.pen):'–')+'</div><div class="sub">'+(trend||'over lowercase')+'</div></div><div><div class="lbl">read as tap</div><div class="v">'+agg.tap+'</div></div><div><div class="lbl">released early</div><div class="v">'+agg.early+'</div></div><div><div class="lbl">held too long</div><div class="v">'+agg.late+'</div></div><div><div class="lbl">waited out the term</div><div class="v">'+agg.slow+'</div></div><div><div class="lbl">mod dropped</div><div class="v">'+agg.drop+'</div></div><div><div class="lbl">key hold</div><div class="v'+(hold!=null&&hold>140?' err':'')+'">'+(hold!=null?hold+' ms':'–')+'</div><div class="sub">term 280, quick-tap 175</div></div></div>';
-    ph+='<p style="margin-top:.6rem">'+esc(shiftVerdict(agg))+(hold!=null&&hold>140?' Your keys are held '+hold+' ms on average, close to the tapping term; a long F or J becomes Shift. Lighter, shorter presses fix both the drops and the speed.':'')+'</p><p class="sub" style="font-size:.88rem">Your firmware: balanced flavour, 280 ms tapping term, 75 ms required idle before the mod, quick-tap 175 ms, opposite-hand positions. A left-hand capital needs J, a right-hand capital needs F.</p>';
+    const m2=(s.shiftMods||'fj').toUpperCase(),first=agg.tap+agg.slow,okOrder=Math.max(0,agg.ok-agg.slow);
+    let ph='<div class="statrow" style="margin-top:0"><div><div class="lbl">capitals that worked</div><div class="v">'+r0(100*agg.ok/agg.n)+'%</div><div class="sub">'+agg.ok+' of '+agg.n+', last '+capT.length+' tests</div></div><div><div class="lbl">extra time per capital</div><div class="v">'+(agg.pen!=null?sms(agg.pen):'–')+'</div><div class="sub">'+(trend?'and '+trend:'against a lowercase letter')+'</div></div><div><div class="lbl">'+m2[0]+' or '+m2[1]+' came up first</div><div class="v'+(first>0.15*agg.n?' err':'')+'">'+first+'</div><div class="sub">'+agg.tap+' typed '+m2[0].toLowerCase()+' or '+m2[1].toLowerCase()+', '+agg.slow+' slow</div></div><div><div class="lbl">came out lowercase</div><div class="v">'+agg.early+'</div></div><div><div class="lbl">Shift stuck on the next letter</div><div class="v">'+agg.late+'</div></div></div>';
+    ph+='<p style="margin-top:.6rem"><b>The one rule: let the capital letter come up before '+m2[0]+' or '+m2[1]+'.</b> Then the keyboard gives the capital at once. If '+m2[0]+' or '+m2[1]+' comes up first, the keyboard either waits 280 ms before giving the capital (slow) or types the letter itself (failed): the same mistake, two outcomes. '+(first?'It happened on '+first+' of your last '+agg.n+' capitals. ':'')+'The Shift tests now mark every capital as you type it.</p><p class="sub" style="font-size:.88rem">A capital typed with the left hand needs '+m2[1]+'; one typed with the right hand needs '+m2[0]+'.'+(hold!=null&&hold>140?' Your keys are held '+hold+' ms on average; much longer and a quick '+m2[0]+' or '+m2[1]+' can turn into Shift by accident.':'')+'</p>';
     $('#p-shift').innerHTML=ph;}
   else $('#p-shift').innerHTML='<span class="sub">No capitals measured yet. The Shift block and the accuracy tests both feed this.</span>';
   const ed=Object.entries(db.edit||{}).filter(([k,v])=>v.n>=1).map(([k,v])=>[EDIT_TASKS.find(t=>t.id===k),v]).filter(x=>x[0]).sort((a,b)=>b[1].ema-a[1].ema);
@@ -1676,8 +1710,8 @@ window.addEventListener('keydown',e=>{
   e.preventDefault();if(e.repeat)return;if(!T.downAt[e.code])T.downAt[e.code]=performance.now();onChar(e.key,e.code);});
 
 window.addEventListener('keyup',e=>{if(!T||T.isEdit||!T.downKeys)return;T.downKeys.delete(e.code);const now=performance.now();if(T.downAt[e.code]){const hd=now-T.downAt[e.code];delete T.downAt[e.code];if(hd<1000&&e.key.length===1&&!(S().shiftMods||'').includes(e.key.toLowerCase()))T.holds.push(hd);}
-  if(e.key==='Shift'){T.shiftIsDown=false;T.shiftUp=now;const c=T.capPending;if(c&&c.letterUp){c.tail=now-c.letterUp;T.capPending=null;}return;}
-  const c=T.capPending;if(c&&e.code===c.code&&!c.letterUp){c.letterUp=now;if(!T.shiftIsDown){c.tail=T.shiftUp-now;T.capPending=null;}}});
+  if(e.key==='Shift'){T.shiftIsDown=false;T.shiftUp=now;const c=T.capPending;if(c&&c.letterUp){c.tail=now-c.letterUp;T.capPending=null;capFb(c);}return;}
+  const c=T.capPending;if(c&&e.code===c.code&&!c.letterUp){c.letterUp=now;if(!T.shiftIsDown){c.tail=T.shiftUp-now;T.capPending=null;capFb(c);}}});
 window.addEventListener('resize',()=>{if(view==='progress')drawChart();});
 loadSettings();bindSettings();refreshIdle();
 
