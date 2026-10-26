@@ -522,7 +522,8 @@ const BACKUP=(()=>{
 const KEYS=/^(pacerace\.v1|typingcoach\.v[23])$/, DBN='pacerace.backup', FILE='pacerace-backup.json', FLAG='backup.restored';
 const rawSet=typeof Storage!=='undefined'?Storage.prototype.setItem:null;
 const LS=(()=>{try{return localStorage;}catch(e){return null;}})();
-const snap=()=>{const o={};if(LS)try{for(let i=0;i<LS.length;i++){const k=LS.key(i);if(k!=null)o[k]=LS.getItem(k);}}catch(e){}return o;};
+/* only this site's own keys: browser extensions also write to the origin's storage, and their data does not belong in a backup */
+const snap=()=>{const o={};if(LS)try{for(let i=0;i<LS.length;i++){const k=LS.key(i);if(k!=null&&/^(pacerace|typingcoach|race\.)/.test(k))o[k]=LS.getItem(k);}}catch(e){}return o;};
 const startKeys=new Set(Object.keys(snap()));
 const idb=()=>new Promise((res,rej)=>{const r=indexedDB.open(DBN,1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});
 async function idbGet(){const d=await idb();return new Promise(res=>{const q=d.transaction('kv').objectStore('kv').get('all');q.onsuccess=()=>res(q.result||null);q.onerror=()=>res(null);});}
