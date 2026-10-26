@@ -903,6 +903,17 @@ function injectCss(){if(document.getElementById('race-css'))return;const s=docum
 return {skillOf,speedOf,fairHold,fairAdjust,fairWho,touchInput,touchFocused,standing,code,cleanCode,esc,textHash,pack,unpack,at,endOf,link,parseHash,parseJoin,sfx,Track,ordinal,floatText,confetti,flash,Link,Sync,loadPeer,errName,injectCss,COLORS,TIERS,tier,lightsHtml,lightsCount,events,callout,CALLOUT,screenFlash,replay,gapAnalysis,timeAt,dayKey,dailyIndex,quests,matchLine};
 })();
 
+/* Mouse pointer: hidden when a test starts and while you type; it comes back only after a real move of 12 px or more, or a click.
+   Browsers also send mousemove when the page redraws or scrolls under a still mouse, which used to bring it straight back. */
+const CURSOR=(()=>{const st=document.createElement('style');st.textContent='body.nocursor,body.nocursor *{cursor:none!important}';document.head.appendChild(st);
+  let lx=null,ly=null,ax=null,ay=null,was=[];const B=()=>document.body;const on=()=>B()&&B().classList.contains('nocursor');
+  const hide=()=>{if(!B())return;B().classList.add('nocursor');ax=lx;ay=ly;};
+  addEventListener('keydown',e=>{if(e.key.length===1||e.key==='Backspace')hide();},true);
+  addEventListener('mousemove',e=>{lx=e.screenX;ly=e.screenY;if(!on())return;if(ax===null){ax=lx;ay=ly;return;}if(Math.abs(lx-ax)+Math.abs(ly-ay)>=12)B().classList.remove('nocursor');},{passive:true});
+  addEventListener('mousedown',()=>{if(on())B().classList.remove('nocursor');},true);
+  if(B())new MutationObserver(()=>{const now=['typing','ingame'].filter(c=>B().classList.contains(c));if(now.some(c=>!was.includes(c)))hide();was=now;}).observe(B(),{attributes:true,attributeFilter:['class']});
+  return {hide};})();
+
 RACE.injectCss();
 const $=s=>document.querySelector(s);const esc=RACE.esc;const r0=x=>Math.round(x),r1=x=>Math.round(x*10)/10;
 const KEY='pacerace.v1';
